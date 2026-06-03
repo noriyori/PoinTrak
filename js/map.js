@@ -95,19 +95,45 @@ function refreshMapInto(id, opts = {}) {
     marker.addTo(entry.markers);
   });
 
-  if (latlngs.length > 1) {
-    L.polyline(latlngs, {
-      color: "#2563eb",
-      weight: 3,
-      opacity: 0.85,
-      dashArray: "6 8",
-    }).addTo(entry.route);
-  }
-
   const bounds = L.latLngBounds(latlngs);
   entry.map.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
   // Leaflet needs a nudge when its container was hidden while sizing.
   setTimeout(() => entry.map.invalidateSize(), 50);
+
+  // Draw the route leg-by-leg, following real roads where possible and
+  // colouring each leg by its travel mode.
+  drawLegs(entry, located);
+}
+
+let _mapLegToken = 0;
+
+async function drawLegs(entry, located) {
+  const token = ++_mapLegToken;
+  for (let i = 0; i < located.length - 1; i++) {
+    const from = located[i];
+    const to = located[i + 1];
+    const mode = from.legMode || "car";
+    const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
+
+    let coords = null;
+    if (m.routed) {
+      const leg = await routeLeg(from.location, to.location);
+      if (token !== _mapLegToken) return; // a newer render superseded us
+      coords = leg.coords;
+    }
+
+    const straight = [
+      [from.location.lat, from.location.lng],
+      [to.location.lat, to.location.lng],
+    ];
+    const line = coords && coords.length
+      ? L.polyline(coords, { color: m.color, weight: 4, opacity: 0.85 })
+      : L.polyline(straight, { color: m.color, weight: 3, opacity: 0.7, dashArray: "6 8" });
+
+    if (token !== _mapLegToken) return;
+    if (entry.interactive) line.bindPopup(`${m.icon} ${m.label} · ${escapeHtml(from.title)} → ${escapeHtml(to.title)}`);
+    line.addTo(entry.route);
+  }
 }
 
 /** Redraw the full route map (Map tab). */

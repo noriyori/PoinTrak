@@ -16,9 +16,11 @@ friend you're visiting).
 - ⏰ **"Leave by" timing** — set an arrival time on each destination and the app
   estimates driving time to the next stop and tells you when to leave (flagging
   ⚠️ tight connections). Uses the free OSRM router with a distance fallback.
-- 🗺 **Dynamic route map** — markers and a route line are drawn automatically
-  from timeline entries that have a location, in chronological order. Add or
-  reorder items and the map updates itself.
+- 🗺 **Dynamic route map** — markers and route legs are drawn automatically from
+  located timeline entries, in order. Each leg has a **travel mode** (🚗 car /
+  🚆 train / 🚲 bike / 🚶 walk): car/bike/walk follow the **real road/path
+  geometry** (via OSRM, keyless) colored by mode; train is a straight estimate.
+  Add or reorder items and the map updates itself.
 - 💡 **Suggestions board** — collaborators propose activities, everyone votes,
   and the best ideas get promoted onto the timeline with one click.
 - ✅ **Planning checklist** — shared to-dos with optional assignees.
