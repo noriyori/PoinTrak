@@ -13,6 +13,9 @@ friend you're visiting).
 - 🏨🎟️🚗✔️ **Rich entry types** — hotel stays, events (museums, shows),
   travel/transport, and tasks/errands (e.g. *pick up rental car*, *drop off
   rental car*).
+- ⏰ **"Leave by" timing** — set an arrival time on each destination and the app
+  estimates driving time to the next stop and tells you when to leave (flagging
+  ⚠️ tight connections). Uses the free OSRM router with a distance fallback.
 - 🗺 **Dynamic route map** — markers and a route line are drawn automatically
   from timeline entries that have a location, in chronological order. Add or
   reorder items and the map updates itself.

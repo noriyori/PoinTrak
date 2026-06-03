@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - claude/trip-planner-web-app-AJbE0
-      - main
   workflow_dispatch:
 
 permissions:
@@ -12,10 +11,10 @@ permissions:
   pages: write
   id-token: write
 
-# Allow one concurrent deployment.
+# Never cancel an in-flight deploy; queue instead so a good build always finishes.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:

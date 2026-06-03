@@ -47,3 +47,56 @@ function debounce(fn, ms) {
     t = setTimeout(() => fn(...args), ms);
   };
 }
+
+/* ============================================================
+   Travel-time estimation between two located points.
+   Uses the free OSRM demo router (driving), with a
+   straight-line (haversine) fallback if it's unreachable.
+   Results are cached so the timeline doesn't re-query.
+   ============================================================ */
+const routeCache = {};
+
+function haversineKm(a, b) {
+  const R = 6371;
+  const toRad = (x) => (x * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+/**
+ * Estimated driving time between two {lat,lng} points.
+ * Returns { minutes, estimated } where estimated=true means the
+ * fallback distance heuristic was used (router unavailable).
+ */
+async function travelMinutes(from, to) {
+  const key = `${from.lat.toFixed(4)},${from.lng.toFixed(4)}->${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+  if (routeCache[key]) return routeCache[key];
+
+  try {
+    const url =
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      const route = data.routes && data.routes[0];
+      if (route) {
+        const result = { minutes: Math.round(route.duration / 60), estimated: false };
+        routeCache[key] = result;
+        return result;
+      }
+    }
+  } catch (e) {
+    /* fall through to heuristic */
+  }
+
+  // Fallback: assume ~50 km/h effective driving speed with a 25% real-world buffer.
+  const km = haversineKm(from, to);
+  const result = { minutes: Math.round((km / 50) * 60 * 1.25), estimated: true };
+  routeCache[key] = result;
+  return result;
+}
