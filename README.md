@@ -19,11 +19,43 @@ friend you're visiting).
 - 💡 **Suggestions board** — collaborators propose activities, everyone votes,
   and the best ideas get promoted onto the timeline with one click.
 - ✅ **Planning checklist** — shared to-dos with optional assignees.
-- 👥 **Collaboration** — works without a backend via:
+- 👥 **Collaboration**
+  - 🟢 **Realtime sync (optional)** — add a free Firebase config and everyone
+    editing the same room sees changes live, across devices. See
+    [Realtime sync setup](#realtime-sync-optional).
   - **Share link** — encodes the whole trip in a URL; opening it merges into the
-    recipient's planner.
+    recipient's planner. (Works even without Firebase.)
   - **Export / Import** — download/upload a `.json` trip file.
   - Merges are **by item id**, so two people's changes combine without clobbering.
+
+## Realtime sync (optional)
+
+By default the app stores everything in your browser and shares via links/files.
+To make all three of you edit the **same trip live**:
+
+1. Create a free Firebase project at <https://console.firebase.google.com>.
+2. **Build → Realtime Database → Create Database** (start in *test mode*).
+3. **Project settings → Your apps → Web app (`</>`)** → copy the config.
+4. Paste it into [`js/firebase-config.js`](js/firebase-config.js), set a shared
+   `POINTRAK_ROOM` code, then commit & push.
+5. Anyone who opens the site (same room + password) now syncs in real time.
+
+The Firebase web config is **not secret** — it's designed to live in client code.
+Access is governed by your database rules. A reasonable rule that keeps the data
+to people who know the room code:
+
+```json
+{
+  "rules": {
+    "pointrak": {
+      "$room": { ".read": true, ".write": true }
+    }
+  }
+}
+```
+
+> This is open to anyone who knows your database URL + room code. For a 3-person
+> private trip that's usually fine; for anything sensitive, add Firebase Auth.
 
 ## The password
 
@@ -53,10 +85,19 @@ publishes the site automatically. After the first push:
 
 ## Maps
 
-The route map uses **Leaflet + OpenStreetMap** with **Nominatim** for turning
-place names into coordinates — all free and key-free, so the app works as a pure
-static site. See the project notes about switching to Apple Maps (MapKit JS),
-which is possible but requires an Apple Developer account and token signing.
+The in-app route map uses **Leaflet + OpenStreetMap** with **Nominatim** for
+turning place names into coordinates — all free and key-free, so the app works as
+a pure static site.
+
+Every location also has an **"Open in Apple Maps ↗"** link (on timeline entries
+and map pins). On an iPhone or Mac this opens the native **Apple Maps** app for
+directions; elsewhere it opens Apple Maps on the web. This gives the Apple Maps
+experience for navigation with no Apple Developer account or cost.
+
+> Switching the *embedded* map to Apple Maps (MapKit JS) is possible but requires
+> an Apple Developer Program membership ($99/year) plus a small serverless
+> endpoint to sign auth tokens — which is why the free OpenStreetMap map is used
+> in-app.
 
 ## Data & privacy
 

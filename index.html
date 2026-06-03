@@ -109,7 +109,12 @@
         </div>
         <form id="checklist-form" class="inline-form">
           <input id="checklist-input" placeholder="Add a to-do (e.g. Book travel insurance)" />
-          <input id="checklist-assignee" class="who-input" placeholder="Assignee (optional)" />
+          <input id="checklist-assignee" class="who-input" placeholder="Assignee (optional)" list="people-list" />
+          <datalist id="people-list">
+            <option value="Peter"></option>
+            <option value="Niszki"></option>
+            <option value="JS"></option>
+          </datalist>
           <button class="primary" type="submit">Add</button>
         </form>
         <ul id="checklist" class="checklist"></ul>
@@ -138,10 +143,16 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
+  <!-- Firebase (optional realtime sync; harmless if not configured) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+
   <script src="js/storage.js"></script>
   <script src="js/geocode.js"></script>
   <script src="js/map.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/sync.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -63,6 +63,7 @@ function setMe(name) {
   if (name && !trip.collaborators.includes(name)) {
     trip.collaborators.push(name);
     saveTrip();
+    if (typeof syncMeta === "function") syncMeta({ collaborators: trip.collaborators });
   }
 }
 

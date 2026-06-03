@@ -10,6 +10,7 @@ function upsertItem(data) {
   if (i >= 0) trip.items[i] = data;
   else trip.items.push(data);
   saveTrip();
+  syncSet("items", data);
   renderTimeline();
   refreshMap();
   toast(i >= 0 ? "Itinerary updated" : "Added to itinerary");
@@ -17,18 +18,30 @@ function upsertItem(data) {
 function deleteItem(id) {
   trip.items = trip.items.filter((x) => x.id !== id);
   saveTrip();
+  syncRemove("items", id);
   renderTimeline();
   refreshMap();
   toast("Removed");
 }
 function toggleItemDone(id) {
   const it = trip.items.find((x) => x.id === id);
-  if (it) { it.done = !it.done; saveTrip(); renderTimeline(); }
+  if (it) { it.done = !it.done; saveTrip(); syncSet("items", it); renderTimeline(); }
+}
+function addComment(collection, id, text) {
+  const entity = (trip[collection] || []).find((x) => x.id === id);
+  if (!entity) return;
+  entity.comments = entity.comments || [];
+  entity.comments.push({ id: uid(), by: getMe() || "Someone", text, ts: Date.now() });
+  saveTrip();
+  syncSet(collection, entity);
+  if (collection === "items") renderTimeline();
+  else renderSuggestions();
 }
 
 function addSuggestion(s) {
   trip.suggestions.push(s);
   saveTrip();
+  syncSet("suggestions", s);
   renderSuggestions();
   toast("Suggestion added");
 }
@@ -45,18 +58,20 @@ function voteSuggestion(id) {
     s.votes = (s.votes || 0) + 1;
   }
   saveTrip();
+  syncSet("suggestions", s);
   renderSuggestions();
 }
 function removeSuggestion(id) {
   trip.suggestions = trip.suggestions.filter((x) => x.id !== id);
   saveTrip();
+  syncRemove("suggestions", id);
   renderSuggestions();
 }
 function acceptSuggestion(id) {
   const s = trip.suggestions.find((x) => x.id === id);
   if (!s) return;
   s.accepted = true;
-  trip.items.push({
+  const newItem = {
     id: uid(),
     type: "event",
     title: s.title,
@@ -66,8 +81,11 @@ function acceptSuggestion(id) {
     location: s.location || null,
     done: false,
     by: s.by,
-  });
+  };
+  trip.items.push(newItem);
   saveTrip();
+  syncSet("suggestions", s);
+  syncSet("items", newItem);
   renderSuggestions();
   renderTimeline();
   refreshMap();
@@ -75,17 +93,20 @@ function acceptSuggestion(id) {
 }
 
 function addCheck(text, assignee) {
-  trip.checklist.push({ id: uid(), text, assignee: assignee || "", done: false });
+  const c = { id: uid(), text, assignee: assignee || "", done: false, by: getMe() };
+  trip.checklist.push(c);
   saveTrip();
+  syncSet("checklist", c);
   renderChecklist();
 }
 function toggleCheck(id) {
   const c = trip.checklist.find((x) => x.id === id);
-  if (c) { c.done = !c.done; saveTrip(); renderChecklist(); }
+  if (c) { c.done = !c.done; saveTrip(); syncSet("checklist", c); renderChecklist(); }
 }
 function deleteCheck(id) {
   trip.checklist = trip.checklist.filter((x) => x.id !== id);
   saveTrip();
+  syncRemove("checklist", id);
   renderChecklist();
 }
 
@@ -93,6 +114,8 @@ function deleteCheck(id) {
 function onTripSaved() {
   const s = document.getElementById("save-status");
   if (!s) return;
+  // Don't stomp the "live sync on" indicator managed by sync.js.
+  if (s.dataset.live === "1") return;
   s.textContent = "Saved · " + new Date().toLocaleTimeString();
 }
 
@@ -135,14 +158,12 @@ function bootApp() {
 
   tryLoadTripFromHash();
 
-  // ask for a name once so edits are attributed
-  if (!getMe()) {
-    const name = prompt("What's your name? (so your wife & friend see who added what)");
-    if (name) setMe(name.trim());
-  }
-
   renderAll();
   wireEvents();
+  initSync();
+
+  // Ask who you are (once) so every edit is attributed.
+  if (!getMe()) identityPicker();
 }
 
 function wireEvents() {
@@ -158,9 +179,15 @@ function wireEvents() {
   });
 
   // Trip header fields
-  document.getElementById("trip-name").addEventListener("input", (e) => { trip.name = e.target.value; saveTrip(); });
-  document.getElementById("trip-start").addEventListener("change", (e) => { trip.start = e.target.value; saveTrip(); });
-  document.getElementById("trip-end").addEventListener("change", (e) => { trip.end = e.target.value; saveTrip(); });
+  document.getElementById("trip-name").addEventListener("input", (e) => {
+    trip.name = e.target.value; saveTrip(); syncMeta({ name: trip.name });
+  });
+  document.getElementById("trip-start").addEventListener("change", (e) => {
+    trip.start = e.target.value; saveTrip(); syncMeta({ start: trip.start });
+  });
+  document.getElementById("trip-end").addEventListener("change", (e) => {
+    trip.end = e.target.value; saveTrip(); syncMeta({ end: trip.end });
+  });
 
   // Add buttons
   document.getElementById("btn-add-item").addEventListener("click", () => itemEditor(null));
@@ -183,10 +210,7 @@ function wireEvents() {
   });
 
   // Identity
-  document.getElementById("btn-rename-me").addEventListener("click", () => {
-    const name = prompt("Your name:", getMe());
-    if (name !== null) { setMe(name.trim()); renderHeader(); }
-  });
+  document.getElementById("btn-rename-me").addEventListener("click", () => identityPicker());
   document.getElementById("btn-who").addEventListener("click", () => {
     const list = trip.collaborators.length ? trip.collaborators.join(", ") : "No one yet";
     toast("Planning together: " + list);
@@ -217,16 +241,22 @@ function wireEvents() {
   // Share
   document.getElementById("btn-share").addEventListener("click", () => {
     const link = encodeTripToHash();
+    const live = syncEnabled();
+    const liveNote = live
+      ? `<p class="empty-hint">🟢 <strong>Live sync is on</strong> (room
+         "${escapeHtml(window.POINTRAK_ROOM || "our-trip")}"). Just send your wife &amp;
+         friend this page's URL — once they unlock with the password, everyone's edits
+         appear instantly. The snapshot link below is a handy backup.</p>`
+      : `<p class="empty-hint">Send this link to your wife and friend. Opening it loads
+         &amp; merges this trip into their planner. They can edit, then share their link
+         back — changes merge by item, so nothing gets lost. (Turn on live sync by adding
+         a Firebase config — see the README.)</p>`;
     openModal(`
       <h2>Share / sync this trip</h2>
-      <p class="empty-hint">
-        Send this link to your wife and friend. Opening it loads &amp; merges this
-        trip into their planner. They can edit, then share their link back — changes
-        merge by item, so nothing gets lost. (You can also use Export/Import files.)
-      </p>
+      ${liveNote}
       <textarea class="share-box" readonly>${escapeHtml(link)}</textarea>
       <div class="modal-actions">
-        <button class="primary" id="copy-link">Copy link</button>
+        <button class="primary" id="copy-link">Copy snapshot link</button>
       </div>
     `);
     document.getElementById("copy-link").addEventListener("click", async () => {

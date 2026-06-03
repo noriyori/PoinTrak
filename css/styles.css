@@ -226,6 +226,8 @@ button.link {
   padding: 1px 9px;
   font-size: 12px;
 }
+.tl-meta .chip-link { color: var(--accent); text-decoration: none; }
+.tl-meta .chip-link:hover { border-color: var(--accent); }
 .tl-notes { margin: 6px 0 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
 .tl-actions { display: flex; flex-direction: column; gap: 6px; }
 .tl-actions button {
@@ -309,6 +311,72 @@ button.link {
 .checklist .ck-assignee { color: var(--muted); font-size: 12px; background: var(--bg-soft); border:1px solid var(--line); padding: 1px 8px; border-radius: 20px; }
 .checklist .ck-del { background: none; border: none; color: var(--muted); font-size: 16px; }
 .checklist .ck-del:hover { color: var(--danger); }
+
+/* ---------- People / avatars ---------- */
+.avatar { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; }
+.avatar .dot {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 10px; font-weight: 800;
+  color: #04101f;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.25) inset;
+}
+.avatar .nm { font-size: 12px; color: var(--text); }
+.chip-author { display: inline-flex; align-items: center; gap: 5px; }
+.chip-author .avatar .nm { color: var(--muted); }
+
+.voters { display: inline-flex; align-items: center; }
+.voters .avatar { margin-left: -6px; }
+.voters .avatar:first-child { margin-left: 0; }
+.voters .dot { width: 18px; height: 18px; font-size: 9px; border: 2px solid var(--panel); }
+
+.card .by { display: flex; align-items: center; gap: 6px; }
+.card .by-lbl { color: var(--muted); }
+
+.ck-author { display: inline-flex; }
+.ck-assignee { display: inline-flex; align-items: center; gap: 4px; }
+
+/* identity picker */
+.who-grid { display: flex; flex-direction: column; gap: 8px; }
+.who-pick {
+  display: flex; align-items: center;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: left;
+}
+.who-pick:hover { border-color: var(--accent); }
+.who-pick.sel { border-color: var(--accent); background: var(--panel-2); }
+.who-pick .avatar .dot { width: 28px; height: 28px; font-size: 12px; }
+.who-pick .avatar .nm { font-size: 15px; font-weight: 600; }
+
+/* ---------- Comments ---------- */
+.cmt-thread {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-right: 4px;
+}
+.cmt { display: flex; gap: 10px; align-items: flex-start; }
+.cmt .avatar .dot { width: 26px; height: 26px; font-size: 11px; }
+.cmt-body {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 11px;
+  flex: 1;
+  min-width: 0;
+}
+.cmt-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.cmt-name { font-size: 13px; font-weight: 700; }
+.cmt-time { font-size: 11px; color: var(--muted); }
+.cmt-text { font-size: 14px; white-space: pre-wrap; word-wrap: break-word; }
 
 /* ---------- Status bar ---------- */
 .statusbar {
