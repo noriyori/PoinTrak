@@ -253,8 +253,8 @@ function refreshOpenComments() {
 /* ============================================================
    Item editor (add / edit timeline entries)
    ============================================================ */
-function itemEditor(existing) {
-  const it = existing || { type: "event" };
+function itemEditor(existing, defaults) {
+  const it = existing || { type: "event", ...(defaults || {}) };
   const typeButtons = Object.entries(ITEM_TYPES)
     .map(
       ([key, meta]) => `
@@ -496,7 +496,7 @@ function renderTimeline() {
       const next = dayItems[idx + 1];
       if (next && it.location?.lat != null && next.location?.lat != null) {
         group.appendChild(
-          el(`<div class="tl-leg" data-leg-from="${it.id}" data-leg-to="${next.id}"></div>`)
+          el(`<div class="tl-leg leg-slot" data-leg-from="${it.id}" data-leg-to="${next.id}"></div>`)
         );
       }
     });
@@ -514,7 +514,6 @@ function renderTimeline() {
    arrive times. Departure uses arrival + stay duration when set;
    otherwise it works back from the next stop's arrival time.
    ============================================================ */
-let _legToken = 0; // guards against overlapping async renders
 
 function shiftTime(hhmm, deltaMin) {
   const [h, m] = hhmm.split(":").map(Number);
@@ -565,55 +564,67 @@ const fromMin = (v) => {
   return `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`;
 };
 
-async function annotateLegs(items) {
-  const token = ++_legToken;
-  const byId = Object.fromEntries(items.map((it) => [it.id, it]));
-  const legs = document.querySelectorAll(".tl-leg");
+/** Build the inner HTML for a travel-leg pill from computed figures. */
+function buildLegPill(cur, next, minutes, km, estimated, m) {
+  const drive = humanDuration(minutes) + (estimated ? " (est.)" : "");
+  const dist = km >= 1 ? ` · ${km.toFixed(km < 10 ? 1 : 0)} km` : "";
 
-  for (const node of legs) {
+  let timing = "";
+  let warn = false;
+  if (cur.time && cur.stay) {
+    // Departure is driven by how long you stay.
+    const leaveMin = toMin(cur.time) + cur.stay;
+    const arriveMin = leaveMin + minutes;
+    timing = ` · leave <strong>${fromMin(leaveMin)}</strong> → arrive <strong>${fromMin(arriveMin)}</strong>`;
+    if (next.time && arriveMin > toMin(next.time)) {
+      warn = true;
+      timing += ` · ⚠️ ${humanDuration(arriveMin - toMin(next.time))} late for ${fromMin(toMin(next.time))}`;
+    }
+  } else if (next.time) {
+    // Work backwards from the next arrival.
+    const leaveMin = toMin(next.time) - minutes;
+    timing = ` · leave by <strong>${fromMin(leaveMin)}</strong> to arrive ${escapeHtml(next.time)}`;
+    if (cur.time && leaveMin < toMin(cur.time)) {
+      warn = true;
+      timing += " · ⚠️ tight";
+    }
+  }
+
+  return (
+    `<span class="leg-pill ${warn ? "leg-warn" : "leg-ok"}">` +
+    `${m.icon} ~${drive}${dist} to ${escapeHtml(next.title)}${timing}</span>`
+  );
+}
+
+/**
+ * Fill every `.leg-slot` inside `root` with its travel-leg pill.
+ * `channel` keeps separate render tokens so the timeline and the
+ * overview day view don't cancel each other's async fills.
+ */
+const _legTokens = {};
+async function annotateLegSlots(channel, root, items) {
+  if (!root) return;
+  const token = (_legTokens[channel] = (_legTokens[channel] || 0) + 1);
+  const byId = Object.fromEntries(items.map((it) => [it.id, it]));
+
+  for (const node of root.querySelectorAll(".leg-slot")) {
     const cur = byId[node.dataset.legFrom];
     const next = byId[node.dataset.legTo];
     if (!cur || !next) continue;
 
     const mode = cur.legMode || "car";
     const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
-
     node.innerHTML = `<span class="leg-pill leg-calc">${m.icon} estimating ${m.label.toLowerCase()}…</span>`;
+
     const { minutes, km, estimated } = await travelByMode(cur.location, next.location, mode);
-    if (token !== _legToken) return; // superseded by a newer render
-
-    const drive = humanDuration(minutes) + (estimated ? " (est.)" : "");
-    const dist = km >= 1 ? ` · ${km.toFixed(km < 10 ? 1 : 0)} km` : "";
-
-    let timing = "";
-    let warn = false;
-    if (cur.time && cur.stay) {
-      // Departure is driven by how long you stay.
-      const leaveMin = toMin(cur.time) + cur.stay;
-      const arriveMin = leaveMin + minutes;
-      timing = ` · leave <strong>${fromMin(leaveMin)}</strong> → arrive <strong>${fromMin(arriveMin)}</strong>`;
-      if (next.time && arriveMin > toMin(next.time)) {
-        warn = true;
-        timing += ` · ⚠️ ${humanDuration(arriveMin - toMin(next.time))} late for ${fromMin(toMin(next.time))}`;
-      }
-    } else if (next.time) {
-      // Work backwards from the next arrival.
-      const leaveMin = toMin(next.time) - minutes;
-      timing = ` · leave by <strong>${fromMin(leaveMin)}</strong> to arrive ${escapeHtml(next.time)}`;
-      if (cur.time && leaveMin < toMin(cur.time)) {
-        warn = true;
-        timing += " · ⚠️ tight";
-      }
-    }
-
-    const live = document.querySelector(
-      `.tl-leg[data-leg-from="${cur.id}"][data-leg-to="${next.id}"]`
-    );
-    if (!live) continue;
-    live.innerHTML =
-      `<span class="leg-pill ${warn ? "leg-warn" : "leg-ok"}">` +
-      `${m.icon} ~${drive}${dist} to ${escapeHtml(next.title)}${timing}</span>`;
+    if (token !== _legTokens[channel]) return; // superseded by a newer render
+    if (!node.isConnected) continue; // node replaced during the await
+    node.innerHTML = buildLegPill(cur, next, minutes, km, estimated, m);
   }
+}
+
+function annotateLegs(items) {
+  annotateLegSlots("timeline", document.getElementById("timeline"), items);
 }
 
 function renderSuggestions() {
@@ -719,24 +730,63 @@ function renderAll() {
 /* ============================================================
    Overview — the "home" dashboard tying everything together
    ============================================================ */
+let _overviewDay = null; // selected day: a date string, "all", or "unscheduled"
+
+/** Distinct, sorted day list combining the trip's date range and item dates. */
+function overviewDayList() {
+  const set = new Set();
+  if (trip.start) {
+    const s = new Date(trip.start + "T00:00:00");
+    const e = new Date((trip.end || trip.start) + "T00:00:00");
+    for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+      set.add(d.toISOString().slice(0, 10));
+    }
+  }
+  for (const it of trip.items) if (it.date) set.add(it.date);
+  return Array.from(set).sort();
+}
+
+function dayLabel(day, dayList) {
+  if (day === "all") return "All days";
+  if (day === "unscheduled") return "Unscheduled";
+  const idx = dayList.indexOf(day);
+  return (idx >= 0 ? `Day ${idx + 1} · ` : "") + prettyDate(day);
+}
+
 function renderOverview() {
   const wrap = document.getElementById("overview");
   if (!wrap) return;
 
   const items = orderedItems();
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = items.filter((it) => !it.date || it.date >= today);
-  const nextItems = (upcoming.length ? upcoming : items).slice(0, 5);
-
   const pendingSugg = trip.suggestions.filter((s) => !s.accepted);
-  const topSugg = [...pendingSugg].sort((a, b) => (b.votes || 0) - (a.votes || 0)).slice(0, 3);
+  const topSugg = [...pendingSugg].sort((a, b) => (b.votes || 0) - (a.votes || 0)).slice(0, 4);
 
   const doneCount = trip.checklist.filter((c) => c.done).length;
   const totalCount = trip.checklist.length;
   const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
-  const openChecks = trip.checklist.filter((c) => !c.done).slice(0, 4);
+  const openChecks = trip.checklist.filter((c) => !c.done).slice(0, 5);
 
   const located = items.filter((it) => it.location && typeof it.location.lat === "number");
+
+  // ----- day selection -----
+  const dayList = overviewDayList();
+  const hasUnscheduled = items.some((it) => !it.date);
+  const validDay =
+    _overviewDay === "all" ||
+    (_overviewDay === "unscheduled" && hasUnscheduled) ||
+    dayList.includes(_overviewDay);
+  if (!validDay) {
+    const today = new Date().toISOString().slice(0, 10);
+    _overviewDay = dayList.includes(today)
+      ? today
+      : dayList[0] || (hasUnscheduled ? "unscheduled" : "all");
+  }
+  const dayItems =
+    _overviewDay === "all"
+      ? items
+      : _overviewDay === "unscheduled"
+      ? items.filter((it) => !it.date)
+      : items.filter((it) => it.date === _overviewDay);
 
   // ----- Hero -----
   const countdown = tripCountdown();
@@ -761,38 +811,65 @@ function renderOverview() {
       <div class="ov-crew">Planning together: <span class="ov-crew-list">${crew}</span></div>
     </div>`;
 
-  // ----- Upcoming itinerary -----
-  const upcomingHtml = `
-    <div class="ov-card">
-      <div class="ov-card-head"><h3>🗓 Up next</h3><div class="ov-head-actions"><button class="ov-add" data-add="item">+ Add</button><button class="link ov-go" data-go="timeline">View all →</button></div></div>
-      ${
-        nextItems.length
-          ? `<ul class="ov-list">${nextItems
-              .map((it) => {
-                const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
-                const when = formatWhen(it) || "Unscheduled";
-                return `<li class="ov-li ${it.done ? "ov-done" : ""}">
-                  <span class="ov-ico">${meta.icon}</span>
-                  <span class="ov-li-main">
-                    <span class="ov-li-title">${escapeHtml(it.title)}</span>
-                    <span class="ov-li-sub">${escapeHtml(when)}${it.location?.name ? " · " + escapeHtml(it.location.name) : ""}</span>
-                  </span>
-                  ${it.by ? avatar(it.by, false) : ""}
-                </li>`;
-              })
-              .join("")}</ul>`
-          : `<p class="empty-hint">No itinerary items yet. <button class="link ov-add" data-add="item">Add the first one →</button></p>`
+  // ----- Day selector tile -----
+  const chip = (key, top, sub) =>
+    `<button class="day-chip ${key === _overviewDay ? "active" : ""}" data-day="${key}">
+      <span class="dc-top">${escapeHtml(top)}</span>${sub ? `<span class="dc-sub">${escapeHtml(sub)}</span>` : ""}
+    </button>`;
+  const dayChips =
+    chip("all", "All", "days") +
+    dayList.map((d, i) => chip(d, `Day ${i + 1}`, prettyDate(d))).join("") +
+    (hasUnscheduled ? chip("unscheduled", "Unscheduled", "") : "");
+  const daySelector = `
+    <div class="ov-card ov-dayselect">
+      <div class="ov-card-head"><h3>📅 Days</h3></div>
+      <div class="day-chips">${dayChips}</div>
+    </div>`;
+
+  // ----- Day view tile (the big left panel) -----
+  const idx = dayList.indexOf(_overviewDay);
+  const prevDisabled = idx <= 0 ? "disabled" : "";
+  const nextDisabled = idx < 0 || idx >= dayList.length - 1 ? "disabled" : "";
+  let dayBody = "";
+  if (!dayItems.length) {
+    dayBody = `<p class="empty-hint">Nothing planned for this day. <button class="link ov-add" data-add="item">Add something →</button></p>`;
+  } else {
+    dayItems.forEach((it, i) => {
+      const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
+      const chips = [];
+      if (it.time) chips.push(`<span class="chip">🛬 ${escapeHtml(it.time)}</span>`);
+      if (it.stay) chips.push(`<span class="chip">⏳ ${escapeHtml(humanDuration(it.stay))}</span>`);
+      if (it.time && it.stay) chips.push(`<span class="chip">🛫 ${escapeHtml(shiftTime(it.time, it.stay).time)}</span>`);
+      if (it.location?.name) chips.push(`<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`);
+      if (it.by) chips.push(`<span class="chip chip-author">${avatar(it.by, false)}</span>`);
+      dayBody += `
+        <div class="dv-item ${it.done ? "dv-done" : ""}" data-type="${it.type}" data-edit="${it.id}">
+          <span class="dv-ico">${meta.icon}</span>
+          <div class="dv-main">
+            <div class="dv-title">${escapeHtml(it.title)}</div>
+            <div class="dv-meta">${chips.join("")}</div>
+          </div>
+        </div>`;
+      const next = dayItems[i + 1];
+      if (next && it.location?.lat != null && next.location?.lat != null) {
+        dayBody += `<div class="ov-leg leg-slot" data-leg-from="${it.id}" data-leg-to="${next.id}"></div>`;
       }
+    });
+  }
+  const dayView = `
+    <div class="ov-card ov-dayview">
+      <div class="ov-card-head">
+        <div class="dv-nav">
+          <button class="dv-arrow" data-step="-1" ${prevDisabled}>◀</button>
+          <h3>${escapeHtml(dayLabel(_overviewDay, dayList))}</h3>
+          <button class="dv-arrow" data-step="1" ${nextDisabled}>▶</button>
+        </div>
+        <div class="ov-head-actions"><button class="ov-add" data-add="item">+ Add</button><button class="link ov-go" data-go="timeline">Full timeline →</button></div>
+      </div>
+      <div class="dv-body">${dayBody}</div>
     </div>`;
 
-  // ----- Mini map -----
-  const mapHtml = `
-    <div class="ov-card ov-map-card">
-      <div class="ov-card-head"><h3>🗺 Route</h3><button class="link ov-go" data-go="map">Open full map →</button></div>
-      <div id="map-overview"></div>
-    </div>`;
-
-  // ----- Top suggestions -----
+  // ----- Top suggestions (right) -----
   const suggHtml = `
     <div class="ov-card">
       <div class="ov-card-head"><h3>💡 Top suggestions</h3><div class="ov-head-actions"><button class="ov-add" data-add="suggestion">+ Add</button><button class="link ov-go" data-go="suggestions">View all →</button></div></div>
@@ -813,7 +890,7 @@ function renderOverview() {
       }
     </div>`;
 
-  // ----- Checklist progress -----
+  // ----- Checklist (right) -----
   const checkHtml = `
     <div class="ov-card">
       <div class="ov-card-head"><h3>✅ Checklist</h3><div class="ov-head-actions"><button class="ov-add" data-add="check">+ Add</button><button class="link ov-go" data-go="checklist">View all →</button></div></div>
@@ -834,19 +911,59 @@ function renderOverview() {
       }
     </div>`;
 
-  wrap.innerHTML = hero + upcomingHtml + mapHtml + suggHtml + checkHtml;
+  // ----- Mini map (right) -----
+  const mapHtml = `
+    <div class="ov-card ov-map-card">
+      <div class="ov-card-head"><h3>🗺 Route</h3><button class="link ov-go" data-go="map">Open full map →</button></div>
+      <div id="map-overview"></div>
+    </div>`;
+
+  wrap.innerHTML =
+    hero +
+    `<div class="ov-col-left">${daySelector}${dayView}</div>` +
+    `<div class="ov-col-right">${suggHtml}${checkHtml}${mapHtml}</div>`;
+
+  // day-default for the "+ Add" buttons in the day view
+  const addDefaults = () =>
+    _overviewDay && _overviewDay !== "all" && _overviewDay !== "unscheduled"
+      ? { date: _overviewDay }
+      : undefined;
 
   wrap.querySelectorAll(".ov-go").forEach((b) =>
     b.addEventListener("click", () => switchTab(b.dataset.go))
   );
   wrap.querySelectorAll(".ov-add").forEach((b) =>
     b.addEventListener("click", () => {
-      if (b.dataset.add === "item") itemEditor(null);
+      if (b.dataset.add === "item") itemEditor(null, addDefaults());
       else if (b.dataset.add === "suggestion") suggestionEditor();
       else if (b.dataset.add === "check") checklistEditor();
     })
   );
+  wrap.querySelectorAll(".day-chip").forEach((b) =>
+    b.addEventListener("click", () => {
+      _overviewDay = b.dataset.day;
+      renderOverview();
+    })
+  );
+  wrap.querySelectorAll(".dv-arrow").forEach((b) =>
+    b.addEventListener("click", () => {
+      if (b.hasAttribute("disabled")) return;
+      const cur = dayList.indexOf(_overviewDay);
+      const target = cur + Number(b.dataset.step);
+      if (target >= 0 && target < dayList.length) {
+        _overviewDay = dayList[target];
+        renderOverview();
+      }
+    })
+  );
+  wrap.querySelectorAll(".dv-item").forEach((row) =>
+    row.addEventListener("click", () => {
+      const it = trip.items.find((x) => x.id === row.dataset.edit);
+      if (it) itemEditor(it);
+    })
+  );
 
+  annotateLegSlots("overview", wrap.querySelector(".dv-body"), dayItems);
   refreshOverviewMap();
 }
 
