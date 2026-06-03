@@ -104,6 +104,20 @@ experience for navigation with no Apple Developer account or cost.
 > endpoint to sign auth tokens — which is why the free OpenStreetMap map is used
 > in-app.
 
+### Route geometry & travel modes
+
+Each leg between stops has a travel mode (🚗 car / 🚆 train / 🚲 bike / 🚶 walk).
+Routes are drawn following the real road/path network and colored by mode.
+
+- **Default (no setup):** car/bike/walk geometry comes from the keyless **OSRM**
+  driving network; bike/walk times are estimated from distance at realistic speeds.
+- **Optional, free upgrade — true bike & walking paths:** add a free
+  **OpenRouteService** token in [`js/routing-config.js`](js/routing-config.js)
+  (2,000 routes/day). PoinTrak then uses proper cycling and pedestrian networks
+  for both geometry and time. See that file for the 2-minute setup.
+- **Train** is always a straight-line estimate (no keyless rail/transit routing
+  exists).
+
 ## Data & privacy
 
 Everything is stored in your browser's `localStorage`. Nothing is uploaded

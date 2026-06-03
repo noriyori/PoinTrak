@@ -1,0 +1,22 @@
+/* ============================================================
+   routing-config.js — OpenRouteService (optional)
+
+   Enables TRUE cycling & walking path routing (and car) instead of
+   approximating with the driving road network. Free.
+
+   --- One-time setup (about 2 minutes) ---
+   1. Sign up (free) at https://openrouteservice.org/dev/#/signup
+   2. Verify your email and log in to the dashboard.
+   3. Under "Tokens", request a free token (the "Standard" free plan
+      gives 2,000 routing requests/day — plenty for trip planning).
+   4. Copy the token and paste it below, then commit & push.
+
+   Without a key, PoinTrak falls back to OSRM driving geometry, so the
+   app keeps working either way.
+
+   NOTE: this token will be visible in the published site's source.
+   ORS free tokens are rate-limited and low-risk, but treat it as
+   semi-public — don't paste a token you also use for anything sensitive.
+   ============================================================ */
+
+window.ORS_API_KEY = "PASTE_ORS_API_KEY";

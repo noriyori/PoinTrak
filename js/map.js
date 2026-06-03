@@ -117,7 +117,7 @@ async function drawLegs(entry, located) {
 
     let coords = null;
     if (m.routed) {
-      const leg = await routeLeg(from.location, to.location);
+      const leg = await travelByMode(from.location, to.location, mode);
       if (token !== _mapLegToken) return; // a newer render superseded us
       coords = leg.coords;
     }
