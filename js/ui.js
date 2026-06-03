@@ -82,6 +82,17 @@ function toast(msg) {
   toast._t = setTimeout(() => (t.hidden = true), 2400);
 }
 
+/** Short relative time like "just now", "5m", "3h", "2d". */
+function timeAgo(ts) {
+  if (!ts) return "";
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 45) return "just now";
+  if (s < 3600) return Math.round(s / 60) + "m ago";
+  if (s < 86400) return Math.round(s / 3600) + "h ago";
+  if (s < 604800) return Math.round(s / 86400) + "d ago";
+  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 /* ---------- date / ordering ---------- */
 function formatWhen(it) {
   const parts = [];
@@ -115,6 +126,7 @@ function openModal(html) {
 function closeModal() {
   document.getElementById("modal").hidden = true;
   document.getElementById("modal-body").innerHTML = "";
+  _openCommentsItem = null;
 }
 
 /* ============================================================
@@ -156,6 +168,80 @@ function identityPicker() {
   document
     .getElementById("who-save")
     .addEventListener("click", () => commit(document.getElementById("who-other").value.trim()));
+}
+
+/* ============================================================
+   Comments — lightweight discussion thread per timeline item
+   ============================================================ */
+let _openCommentsItem = null;
+
+function commentListHtml(it) {
+  const comments = it.comments || [];
+  if (!comments.length)
+    return `<p class="empty-hint">No comments yet — start the discussion 👇</p>`;
+  return comments
+    .map(
+      (c) => `
+      <div class="cmt">
+        ${avatar(c.by, false)}
+        <div class="cmt-body">
+          <div class="cmt-head">
+            <span class="cmt-name">${escapeHtml(c.by || "?")}</span>
+            <span class="cmt-time">${timeAgo(c.ts)}</span>
+          </div>
+          <div class="cmt-text">${escapeHtml(c.text)}</div>
+        </div>
+      </div>`
+    )
+    .join("");
+}
+
+function commentsModal(itemId) {
+  const it = trip.items.find((x) => x.id === itemId);
+  if (!it) return;
+  _openCommentsItem = itemId;
+  const me = getMe();
+  const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
+
+  openModal(`
+    <h2>${meta.icon} ${escapeHtml(it.title)}</h2>
+    <div class="cmt-thread">${commentListHtml(it)}</div>
+    <form id="cmt-form" class="inline-form">
+      <input id="cmt-input" autocomplete="off"
+        placeholder="${me ? "Comment as " + escapeHtml(me) + "…" : "Add a comment…"}" />
+      <button class="primary" type="submit">Send</button>
+    </form>
+  `);
+
+  const thread = document.querySelector(".cmt-thread");
+  if (thread) thread.scrollTop = thread.scrollHeight;
+
+  document.getElementById("cmt-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = document.getElementById("cmt-input");
+    const v = input.value.trim();
+    if (!v) return;
+    addComment(itemId, v);
+    input.value = "";
+    refreshOpenComments();
+  });
+}
+
+/** Live-update an open comment thread (used after remote sync changes). */
+function refreshOpenComments() {
+  if (!_openCommentsItem) return;
+  const wrap = document.querySelector(".cmt-thread");
+  if (!wrap) {
+    _openCommentsItem = null;
+    return;
+  }
+  const it = trip.items.find((x) => x.id === _openCommentsItem);
+  if (!it) {
+    closeModal();
+    return;
+  }
+  wrap.innerHTML = commentListHtml(it);
+  wrap.scrollTop = wrap.scrollHeight;
 }
 
 /* ============================================================
@@ -375,6 +461,7 @@ function renderTimeline() {
             ${it.notes ? `<p class="tl-notes">${escapeHtml(it.notes)}</p>` : ""}
           </div>
           <div class="tl-actions">
+            <button data-act="comments" title="Comments">💬 ${(it.comments || []).length || ""}</button>
             <button data-act="done">${it.done ? "↺" : "✓"}</button>
             <button data-act="edit">✎</button>
           </div>
@@ -382,6 +469,7 @@ function renderTimeline() {
       `);
       card.querySelector('[data-act="edit"]').addEventListener("click", () => itemEditor(it));
       card.querySelector('[data-act="done"]').addEventListener("click", () => toggleItemDone(it.id));
+      card.querySelector('[data-act="comments"]').addEventListener("click", () => commentsModal(it.id));
       group.appendChild(card);
     }
     wrap.appendChild(group);

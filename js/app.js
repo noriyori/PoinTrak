@@ -27,6 +27,15 @@ function toggleItemDone(id) {
   const it = trip.items.find((x) => x.id === id);
   if (it) { it.done = !it.done; saveTrip(); syncSet("items", it); renderTimeline(); }
 }
+function addComment(itemId, text) {
+  const it = trip.items.find((x) => x.id === itemId);
+  if (!it) return;
+  it.comments = it.comments || [];
+  it.comments.push({ id: uid(), by: getMe() || "Someone", text, ts: Date.now() });
+  saveTrip();
+  syncSet("items", it);
+  renderTimeline();
+}
 
 function addSuggestion(s) {
   trip.suggestions.push(s);

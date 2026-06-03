@@ -128,6 +128,7 @@ function applyRemote(data) {
   trip = incoming;
   saveLocalOnly();
   renderAll();
+  if (typeof refreshOpenComments === "function") refreshOpenComments();
   _applyingRemote = false;
 }
 
