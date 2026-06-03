@@ -298,6 +298,10 @@ function itemEditor(existing) {
         }</div>
       </div>
       <div class="form-row">
+        <label>How you'll travel to the next stop</label>
+        <select id="f-mode">${modeOptions(it.legMode || "car")}</select>
+      </div>
+      <div class="form-row">
         <label>Notes</label>
         <textarea id="f-notes" rows="2" placeholder="Confirmation #, who's responsible, etc.">${escapeHtml(it.notes || "")}</textarea>
       </div>
@@ -358,6 +362,7 @@ function itemEditor(existing) {
       date: document.getElementById("f-date").value,
       time: document.getElementById("f-time").value,
       stay: parseInt(document.getElementById("f-stay").value, 10) || 0,
+      legMode: document.getElementById("f-mode").value,
       endDate: document.getElementById("f-enddate").value,
       notes: document.getElementById("f-notes").value.trim(),
       location: resolvedLoc,
@@ -530,6 +535,15 @@ function humanDuration(mins) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+function modeOptions(selected) {
+  return Object.entries(TRAVEL_MODES)
+    .map(
+      ([k, m]) =>
+        `<option value="${k}" ${k === selected ? "selected" : ""}>${m.icon} ${m.label}</option>`
+    )
+    .join("");
+}
+
 function stayOptions(selected) {
   const opts = [0, 15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480];
   if (selected && !opts.includes(selected)) opts.push(selected);
@@ -561,8 +575,11 @@ async function annotateLegs(items) {
     const next = byId[node.dataset.legTo];
     if (!cur || !next) continue;
 
-    node.innerHTML = `<span class="leg-pill leg-calc">⏳ estimating drive…</span>`;
-    const { minutes, km, estimated } = await travelMinutes(cur.location, next.location);
+    const mode = cur.legMode || "car";
+    const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
+
+    node.innerHTML = `<span class="leg-pill leg-calc">${m.icon} estimating ${m.label.toLowerCase()}…</span>`;
+    const { minutes, km, estimated } = await travelByMode(cur.location, next.location, mode);
     if (token !== _legToken) return; // superseded by a newer render
 
     const drive = humanDuration(minutes) + (estimated ? " (est.)" : "");
@@ -595,7 +612,7 @@ async function annotateLegs(items) {
     if (!live) continue;
     live.innerHTML =
       `<span class="leg-pill ${warn ? "leg-warn" : "leg-ok"}">` +
-      `🚗 ~${drive}${dist} to ${escapeHtml(next.title)}${timing}</span>`;
+      `${m.icon} ~${drive}${dist} to ${escapeHtml(next.title)}${timing}</span>`;
   }
 }
 

@@ -49,11 +49,19 @@ function debounce(fn, ms) {
 }
 
 /* ============================================================
-   Travel-time estimation between two located points.
-   Uses the free OSRM demo router (driving), with a
-   straight-line (haversine) fallback if it's unreachable.
-   Results are cached so the timeline doesn't re-query.
+   Travel modes + route geometry between two located points.
+   Road-following geometry comes from the free OSRM demo router
+   (driving network, keyless). Bike/Walk reuse that geometry but
+   estimate time at their own speed; Train is a straight line.
+   Results are cached so the timeline & map don't re-query.
    ============================================================ */
+const TRAVEL_MODES = {
+  car:   { label: "Car",   icon: "🚗", color: "#2563eb", speed: null, routed: true },
+  train: { label: "Train", icon: "🚆", color: "#7c3aed", speed: 80,   routed: false },
+  bike:  { label: "Bike",  icon: "🚲", color: "#059669", speed: 15,   routed: true },
+  walk:  { label: "Walk",  icon: "🚶", color: "#d97706", speed: 5,    routed: true },
+};
+
 const routeCache = {};
 
 function haversineKm(a, b) {
@@ -68,26 +76,31 @@ function haversineKm(a, b) {
 }
 
 /**
- * Estimated driving time between two {lat,lng} points.
- * Returns { minutes, km, estimated } where estimated=true means the
- * fallback distance heuristic was used (router unavailable).
+ * Road-following route between two {lat,lng} points.
+ * Returns { minutes, km, coords, estimated } where:
+ *   - coords is an array of [lat,lng] following the actual roads
+ *     (null if the router was unreachable -> caller draws a straight line)
+ *   - minutes/km are the driving figures from the router
+ *   - estimated=true means the distance heuristic fallback was used
  */
-async function travelMinutes(from, to) {
+async function routeLeg(from, to) {
   const key = `${from.lat.toFixed(4)},${from.lng.toFixed(4)}->${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
   if (routeCache[key]) return routeCache[key];
 
   try {
     const url =
       `https://router.project-osrm.org/route/v1/driving/` +
-      `${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
+      `${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
     const res = await fetch(url);
     if (res.ok) {
       const data = await res.json();
       const route = data.routes && data.routes[0];
       if (route) {
+        const coords = (route.geometry?.coordinates || []).map((c) => [c[1], c[0]]);
         const result = {
           minutes: Math.round(route.duration / 60),
           km: route.distance / 1000,
+          coords: coords.length ? coords : null,
           estimated: false,
         };
         routeCache[key] = result;
@@ -98,9 +111,25 @@ async function travelMinutes(from, to) {
     /* fall through to heuristic */
   }
 
-  // Fallback: assume ~50 km/h effective driving speed with a 25% real-world buffer.
+  // Fallback: straight-line distance, ~50 km/h with a 25% buffer, no geometry.
   const km = haversineKm(from, to);
-  const result = { minutes: Math.round((km / 50) * 60 * 1.25), km, estimated: true };
+  const result = { minutes: Math.round((km / 50) * 60 * 1.25), km, coords: null, estimated: true };
   routeCache[key] = result;
   return result;
+}
+
+/**
+ * Mode-aware travel estimate between two located points.
+ * Returns { minutes, km, coords, estimated, mode }.
+ */
+async function travelByMode(from, to, mode) {
+  const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
+  if (!m.routed) {
+    // Train (or other non-routed): straight line + speed estimate.
+    const km = haversineKm(from, to);
+    return { minutes: Math.round((km / m.speed) * 60), km, coords: null, estimated: true, mode };
+  }
+  const leg = await routeLeg(from, to);
+  const minutes = m.speed ? Math.round((leg.km / m.speed) * 60) : leg.minutes;
+  return { minutes, km: leg.km, coords: leg.coords, estimated: leg.estimated, mode };
 }
