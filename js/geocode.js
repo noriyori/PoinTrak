@@ -118,8 +118,61 @@ async function routeLeg(from, to) {
   return result;
 }
 
+/* ---------- OpenRouteService (optional, true per-mode routing) ---------- */
+const ORS_PROFILES = { car: "driving-car", bike: "cycling-regular", walk: "foot-walking" };
+
+function orsEnabled() {
+  const k = window.ORS_API_KEY;
+  return !!(k && !k.startsWith("PASTE"));
+}
+
+/**
+ * Per-mode route from OpenRouteService (proper bike/foot networks).
+ * Returns the same shape as routeLeg, or null if unavailable.
+ */
+async function orsRoute(from, to, mode) {
+  const profile = ORS_PROFILES[mode];
+  if (!orsEnabled() || !profile) return null;
+
+  const key = `ors:${mode}:${from.lat.toFixed(4)},${from.lng.toFixed(4)}->${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+  if (routeCache[key]) return routeCache[key];
+
+  try {
+    const res = await fetch(
+      `https://api.openrouteservice.org/v2/directions/${profile}/geojson`,
+      {
+        method: "POST",
+        headers: { Authorization: window.ORS_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ coordinates: [[from.lng, from.lat], [to.lng, to.lat]] }),
+      }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const feat = data.features && data.features[0];
+      const sum = feat && feat.properties && feat.properties.summary;
+      if (feat && sum) {
+        const coords = (feat.geometry?.coordinates || []).map((c) => [c[1], c[0]]);
+        const result = {
+          minutes: Math.round(sum.duration / 60),
+          km: sum.distance / 1000,
+          coords: coords.length ? coords : null,
+          estimated: false,
+        };
+        routeCache[key] = result;
+        return result;
+      }
+    }
+  } catch (e) {
+    /* fall through to OSRM */
+  }
+  return null;
+}
+
 /**
  * Mode-aware travel estimate between two located points.
+ * Prefers OpenRouteService for true car/bike/walk routing; otherwise
+ * falls back to OSRM driving geometry with a speed-based time for
+ * bike/walk. Train is always a straight-line estimate.
  * Returns { minutes, km, coords, estimated, mode }.
  */
 async function travelByMode(from, to, mode) {
@@ -129,6 +182,11 @@ async function travelByMode(from, to, mode) {
     const km = haversineKm(from, to);
     return { minutes: Math.round((km / m.speed) * 60), km, coords: null, estimated: true, mode };
   }
+
+  const ors = await orsRoute(from, to, mode);
+  if (ors) return { ...ors, mode };
+
+  // Fallback: OSRM driving geometry, time adjusted by mode speed.
   const leg = await routeLeg(from, to);
   const minutes = m.speed ? Math.round((leg.km / m.speed) * 60) : leg.minutes;
   return { minutes, km: leg.km, coords: leg.coords, estimated: leg.estimated, mode };
