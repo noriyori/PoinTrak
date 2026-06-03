@@ -13,6 +13,7 @@ function upsertItem(data) {
   syncSet("items", data);
   renderTimeline();
   refreshMap();
+  refreshOverviewIfActive();
   toast(i >= 0 ? "Itinerary updated" : "Added to itinerary");
 }
 function deleteItem(id) {
@@ -21,11 +22,12 @@ function deleteItem(id) {
   syncRemove("items", id);
   renderTimeline();
   refreshMap();
+  refreshOverviewIfActive();
   toast("Removed");
 }
 function toggleItemDone(id) {
   const it = trip.items.find((x) => x.id === id);
-  if (it) { it.done = !it.done; saveTrip(); syncSet("items", it); renderTimeline(); }
+  if (it) { it.done = !it.done; saveTrip(); syncSet("items", it); renderTimeline(); refreshOverviewIfActive(); }
 }
 function addComment(collection, id, text) {
   const entity = (trip[collection] || []).find((x) => x.id === id);
@@ -43,6 +45,7 @@ function addSuggestion(s) {
   saveTrip();
   syncSet("suggestions", s);
   renderSuggestions();
+  refreshOverviewIfActive();
   toast("Suggestion added");
 }
 function voteSuggestion(id) {
@@ -60,12 +63,14 @@ function voteSuggestion(id) {
   saveTrip();
   syncSet("suggestions", s);
   renderSuggestions();
+  refreshOverviewIfActive();
 }
 function removeSuggestion(id) {
   trip.suggestions = trip.suggestions.filter((x) => x.id !== id);
   saveTrip();
   syncRemove("suggestions", id);
   renderSuggestions();
+  refreshOverviewIfActive();
 }
 function acceptSuggestion(id) {
   const s = trip.suggestions.find((x) => x.id === id);
@@ -89,6 +94,7 @@ function acceptSuggestion(id) {
   renderSuggestions();
   renderTimeline();
   refreshMap();
+  refreshOverviewIfActive();
   toast("Added to timeline — set a date in the Timeline tab");
 }
 
@@ -98,16 +104,18 @@ function addCheck(text, assignee) {
   saveTrip();
   syncSet("checklist", c);
   renderChecklist();
+  refreshOverviewIfActive();
 }
 function toggleCheck(id) {
   const c = trip.checklist.find((x) => x.id === id);
-  if (c) { c.done = !c.done; saveTrip(); syncSet("checklist", c); renderChecklist(); }
+  if (c) { c.done = !c.done; saveTrip(); syncSet("checklist", c); renderChecklist(); refreshOverviewIfActive(); }
 }
 function deleteCheck(id) {
   trip.checklist = trip.checklist.filter((x) => x.id !== id);
   saveTrip();
   syncRemove("checklist", id);
   renderChecklist();
+  refreshOverviewIfActive();
 }
 
 /* ---------- Save indicator ---------- */
