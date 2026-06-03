@@ -59,12 +59,16 @@ function refreshMap() {
     latlngs.push(ll);
     const icon = ITEM_TYPES[it.type]?.icon || "📍";
     const when = formatWhen(it);
+    const am = appleMapsUrl(it.location);
     L.marker(ll, { icon: numberedIcon(i + 1, it.type) })
       .bindPopup(
         `<strong>${icon} ${escapeHtml(it.title)}</strong>` +
           (when ? `<br><span style="color:#666">${escapeHtml(when)}</span>` : "") +
           (it.location.label
             ? `<br><span style="color:#888;font-size:11px">${escapeHtml(it.location.label)}</span>`
+            : "") +
+          (am
+            ? `<br><a href="${am}" target="_blank" rel="noopener" style="color:#4f9dff;font-size:12px">Open in Apple Maps ↗</a>`
             : "")
       )
       .addTo(_markersLayer);

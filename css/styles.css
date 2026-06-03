@@ -226,6 +226,8 @@ button.link {
   padding: 1px 9px;
   font-size: 12px;
 }
+.tl-meta .chip-link { color: var(--accent); text-decoration: none; }
+.tl-meta .chip-link:hover { border-color: var(--accent); }
 .tl-notes { margin: 6px 0 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
 .tl-actions { display: flex; flex-direction: column; gap: 6px; }
 .tl-actions button {

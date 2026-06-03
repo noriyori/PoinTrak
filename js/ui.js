@@ -16,6 +16,21 @@ function escapeHtml(s) {
   );
 }
 
+/**
+ * Build an Apple Maps deep link for a location.
+ * On iPhone/Mac this opens the native Apple Maps app; elsewhere the web map.
+ * Uses coordinates when available, falling back to a text query.
+ */
+function appleMapsUrl(loc) {
+  if (!loc) return null;
+  if (typeof loc.lat === "number") {
+    const q = encodeURIComponent(loc.name || loc.label || "Destination");
+    return `https://maps.apple.com/?ll=${loc.lat},${loc.lng}&q=${q}`;
+  }
+  if (loc.name) return `https://maps.apple.com/?q=${encodeURIComponent(loc.name)}`;
+  return null;
+}
+
 function el(html) {
   const t = document.createElement("template");
   t.innerHTML = html.trim();
@@ -263,7 +278,14 @@ function renderTimeline() {
       const chips = [];
       if (it.time) chips.push(`<span class="chip">⏰ ${escapeHtml(it.time)}</span>`);
       if (it.type === "hotel" && it.endDate) chips.push(`<span class="chip">🛏 until ${prettyDate(it.endDate)}</span>`);
-      if (it.location?.name) chips.push(`<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`);
+      if (it.location?.name) {
+        const am = appleMapsUrl(it.location);
+        chips.push(
+          am
+            ? `<a class="chip chip-link" href="${am}" target="_blank" rel="noopener" title="Open in Apple Maps">📍 ${escapeHtml(it.location.name)} ↗</a>`
+            : `<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`
+        );
+      }
       if (it.by) chips.push(`<span class="chip">👤 ${escapeHtml(it.by)}</span>`);
 
       const card = el(`

@@ -53,10 +53,19 @@ publishes the site automatically. After the first push:
 
 ## Maps
 
-The route map uses **Leaflet + OpenStreetMap** with **Nominatim** for turning
-place names into coordinates — all free and key-free, so the app works as a pure
-static site. See the project notes about switching to Apple Maps (MapKit JS),
-which is possible but requires an Apple Developer account and token signing.
+The in-app route map uses **Leaflet + OpenStreetMap** with **Nominatim** for
+turning place names into coordinates — all free and key-free, so the app works as
+a pure static site.
+
+Every location also has an **"Open in Apple Maps ↗"** link (on timeline entries
+and map pins). On an iPhone or Mac this opens the native **Apple Maps** app for
+directions; elsewhere it opens Apple Maps on the web. This gives the Apple Maps
+experience for navigation with no Apple Developer account or cost.
+
+> Switching the *embedded* map to Apple Maps (MapKit JS) is possible but requires
+> an Apple Developer Program membership ($99/year) plus a small serverless
+> endpoint to sign auth tokens — which is why the free OpenStreetMap map is used
+> in-app.
 
 ## Data & privacy
 
