@@ -334,19 +334,28 @@ button.link {
 .tl-meta .chip-link { color: var(--accent); text-decoration: none; }
 .tl-meta .chip-link:hover { border-color: var(--accent); }
 .tl-notes { margin: 6px 0 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
-.tl-leave:empty { display: none; }
-.tl-leave { margin-top: 8px; }
-.leave-chip {
+
+/* Auto-inserted travel leg between two consecutive located stops */
+.tl-leg { display: flex; align-items: center; margin: -2px 0 8px 18px; padding-left: 16px; position: relative; }
+.tl-leg:empty { display: none; }
+.tl-leg::before {
+  content: "";
+  position: absolute;
+  left: 0; top: -6px; bottom: 50%;
+  width: 2px;
+  background: var(--line);
+}
+.leg-pill {
   display: inline-block;
   font-size: 12.5px;
-  padding: 4px 10px;
-  border-radius: 8px;
+  padding: 4px 11px;
+  border-radius: 16px;
   border: 1px solid var(--line);
 }
-.leave-chip.leave-ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
-.leave-chip.leave-warn { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-.leave-chip.leave-calc { background: var(--panel-2); color: var(--muted); }
-.leave-chip strong { font-weight: 800; }
+.leg-pill.leg-ok { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.leg-pill.leg-warn { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.leg-pill.leg-calc { background: var(--panel-2); color: var(--muted); }
+.leg-pill strong { font-weight: 800; }
 .tl-actions { display: flex; flex-direction: column; gap: 6px; }
 .tl-actions button {
   background: var(--bg-soft);

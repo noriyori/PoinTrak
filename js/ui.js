@@ -282,6 +282,10 @@ function itemEditor(existing) {
           <input id="f-time" type="time" value="${it.time || ""}" />
         </div>
       </div>
+      <div class="form-row" id="stay-row" ${it.type === "hotel" ? "hidden" : ""}>
+        <label>Stay duration (how long you'll spend here)</label>
+        <select id="f-stay">${stayOptions(it.stay || 0)}</select>
+      </div>
       <div class="form-row" id="enddate-row" ${it.type === "hotel" ? "" : "hidden"}>
         <label>Check-out date</label>
         <input id="f-enddate" type="date" value="${it.endDate || ""}" />
@@ -315,6 +319,7 @@ function itemEditor(existing) {
       btn.classList.add("sel");
       chosenType = btn.dataset.type;
       document.getElementById("enddate-row").hidden = chosenType !== "hotel";
+      document.getElementById("stay-row").hidden = chosenType === "hotel";
     });
   });
 
@@ -352,6 +357,7 @@ function itemEditor(existing) {
       title: document.getElementById("f-title").value.trim(),
       date: document.getElementById("f-date").value,
       time: document.getElementById("f-time").value,
+      stay: parseInt(document.getElementById("f-stay").value, 10) || 0,
       endDate: document.getElementById("f-enddate").value,
       notes: document.getElementById("f-notes").value.trim(),
       location: resolvedLoc,
@@ -443,10 +449,13 @@ function renderTimeline() {
         : `<div class="day-title">${prettyDate(key)}</div>`;
     const group = el(`<div class="day-group"><div class="day-header">${header}</div></div>`);
 
-    for (const it of groups[key]) {
+    const dayItems = groups[key];
+    dayItems.forEach((it, idx) => {
       const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
       const chips = [];
       if (it.time) chips.push(`<span class="chip">🛬 Arrive ${escapeHtml(it.time)}</span>`);
+      if (it.stay) chips.push(`<span class="chip">⏳ Stay ${escapeHtml(humanDuration(it.stay))}</span>`);
+      if (it.time && it.stay) chips.push(`<span class="chip">🛫 Depart ${escapeHtml(shiftTime(it.time, it.stay).time)}</span>`);
       if (it.type === "hotel" && it.endDate) chips.push(`<span class="chip">🛏 until ${prettyDate(it.endDate)}</span>`);
       if (it.location?.name) {
         const am = appleMapsUrl(it.location);
@@ -465,7 +474,6 @@ function renderTimeline() {
             <p class="tl-title">${escapeHtml(it.title)}</p>
             <div class="tl-meta">${chips.join("")}</div>
             ${it.notes ? `<p class="tl-notes">${escapeHtml(it.notes)}</p>` : ""}
-            <div class="tl-leave" data-leave-for="${it.id}"></div>
           </div>
           <div class="tl-actions">
             <button data-act="comments" title="Comments">💬 ${(it.comments || []).length || ""}</button>
@@ -478,21 +486,30 @@ function renderTimeline() {
       card.querySelector('[data-act="done"]').addEventListener("click", () => toggleItemDone(it.id));
       card.querySelector('[data-act="comments"]').addEventListener("click", () => commentsModal("items", it.id));
       group.appendChild(card);
-    }
+
+      // Auto travel leg to the next located stop on the same day.
+      const next = dayItems[idx + 1];
+      if (next && it.location?.lat != null && next.location?.lat != null) {
+        group.appendChild(
+          el(`<div class="tl-leg" data-leg-from="${it.id}" data-leg-to="${next.id}"></div>`)
+        );
+      }
+    });
     wrap.appendChild(group);
   }
 
-  // Fill in "leave by" times asynchronously (needs travel-time lookups).
-  annotateLeaveTimes(items);
+  // Fill in travel legs (leave/arrive times + drive) asynchronously.
+  annotateLegs(items);
 }
 
 /* ============================================================
-   "Leave by" calculation
-   For each located stop with an arrival time, work out when you
-   must leave to reach the NEXT located+timed stop on the same day,
-   based on estimated driving time between them.
+   Travel legs
+   Between two consecutive located stops, show an auto-inserted
+   travel leg: the drive (time + distance) plus computed leave/
+   arrive times. Departure uses arrival + stay duration when set;
+   otherwise it works back from the next stop's arrival time.
    ============================================================ */
-let _leaveToken = 0; // guards against overlapping async renders
+let _legToken = 0; // guards against overlapping async renders
 
 function shiftTime(hhmm, deltaMin) {
   const [h, m] = hhmm.split(":").map(Number);
@@ -513,39 +530,72 @@ function humanDuration(mins) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-async function annotateLeaveTimes(items) {
-  const token = ++_leaveToken;
-  const hasCoords = (it) => it.location && typeof it.location.lat === "number";
+function stayOptions(selected) {
+  const opts = [0, 15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480];
+  if (selected && !opts.includes(selected)) opts.push(selected);
+  opts.sort((a, b) => a - b);
+  return opts
+    .map(
+      (v) =>
+        `<option value="${v}" ${v === selected ? "selected" : ""}>${v === 0 ? "— none —" : humanDuration(v)}</option>`
+    )
+    .join("");
+}
 
-  for (let i = 0; i < items.length - 1; i++) {
-    const cur = items[i];
-    const next = items[i + 1];
-    const node = document.querySelector(`.tl-leave[data-leave-for="${cur.id}"]`);
-    if (!node) continue;
+const toMin = (t) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+const fromMin = (v) => {
+  v = ((v % 1440) + 1440) % 1440;
+  return `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`;
+};
 
-    // Only compute when we can: both located, next has an arrival time,
-    // and they're on the same day (or undated).
-    if (!hasCoords(cur) || !hasCoords(next) || !next.time) { node.innerHTML = ""; continue; }
-    if (cur.date && next.date && cur.date !== next.date) { node.innerHTML = ""; continue; }
+async function annotateLegs(items) {
+  const token = ++_legToken;
+  const byId = Object.fromEntries(items.map((it) => [it.id, it]));
+  const legs = document.querySelectorAll(".tl-leg");
 
-    node.innerHTML = `<span class="leave-chip leave-calc">⏳ estimating drive to ${escapeHtml(next.title)}…</span>`;
+  for (const node of legs) {
+    const cur = byId[node.dataset.legFrom];
+    const next = byId[node.dataset.legTo];
+    if (!cur || !next) continue;
 
-    const { minutes, estimated } = await travelMinutes(cur.location, next.location);
-    if (token !== _leaveToken) return; // a newer render superseded us
+    node.innerHTML = `<span class="leg-pill leg-calc">⏳ estimating drive…</span>`;
+    const { minutes, km, estimated } = await travelMinutes(cur.location, next.location);
+    if (token !== _legToken) return; // superseded by a newer render
 
-    const leave = shiftTime(next.time, -minutes);
-    const tight = leave.dayOffset < 0 || (cur.time && leave.time < cur.time);
-    const drive = humanDuration(minutes) + (estimated ? " est." : "");
-    const prevDay = leave.dayOffset < 0 ? " (day before)" : "";
+    const drive = humanDuration(minutes) + (estimated ? " (est.)" : "");
+    const dist = km >= 1 ? ` · ${km.toFixed(km < 10 ? 1 : 0)} km` : "";
 
-    // re-query: the node may have been replaced during the await
-    const live = document.querySelector(`.tl-leave[data-leave-for="${cur.id}"]`);
+    let timing = "";
+    let warn = false;
+    if (cur.time && cur.stay) {
+      // Departure is driven by how long you stay.
+      const leaveMin = toMin(cur.time) + cur.stay;
+      const arriveMin = leaveMin + minutes;
+      timing = ` · leave <strong>${fromMin(leaveMin)}</strong> → arrive <strong>${fromMin(arriveMin)}</strong>`;
+      if (next.time && arriveMin > toMin(next.time)) {
+        warn = true;
+        timing += ` · ⚠️ ${humanDuration(arriveMin - toMin(next.time))} late for ${fromMin(toMin(next.time))}`;
+      }
+    } else if (next.time) {
+      // Work backwards from the next arrival.
+      const leaveMin = toMin(next.time) - minutes;
+      timing = ` · leave by <strong>${fromMin(leaveMin)}</strong> to arrive ${escapeHtml(next.time)}`;
+      if (cur.time && leaveMin < toMin(cur.time)) {
+        warn = true;
+        timing += " · ⚠️ tight";
+      }
+    }
+
+    const live = document.querySelector(
+      `.tl-leg[data-leg-from="${cur.id}"][data-leg-to="${next.id}"]`
+    );
     if (!live) continue;
     live.innerHTML =
-      `<span class="leave-chip ${tight ? "leave-warn" : "leave-ok"}">` +
-      `🚗 Leave by <strong>${leave.time}${prevDay}</strong> for ${escapeHtml(next.title)} · ~${drive}` +
-      (tight ? " · ⚠️ tight connection" : "") +
-      `</span>`;
+      `<span class="leg-pill ${warn ? "leg-warn" : "leg-ok"}">` +
+      `🚗 ~${drive}${dist} to ${escapeHtml(next.title)}${timing}</span>`;
   }
 }
 

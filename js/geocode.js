@@ -69,7 +69,7 @@ function haversineKm(a, b) {
 
 /**
  * Estimated driving time between two {lat,lng} points.
- * Returns { minutes, estimated } where estimated=true means the
+ * Returns { minutes, km, estimated } where estimated=true means the
  * fallback distance heuristic was used (router unavailable).
  */
 async function travelMinutes(from, to) {
@@ -85,7 +85,11 @@ async function travelMinutes(from, to) {
       const data = await res.json();
       const route = data.routes && data.routes[0];
       if (route) {
-        const result = { minutes: Math.round(route.duration / 60), estimated: false };
+        const result = {
+          minutes: Math.round(route.duration / 60),
+          km: route.distance / 1000,
+          estimated: false,
+        };
         routeCache[key] = result;
         return result;
       }
@@ -96,7 +100,7 @@ async function travelMinutes(from, to) {
 
   // Fallback: assume ~50 km/h effective driving speed with a 25% real-world buffer.
   const km = haversineKm(from, to);
-  const result = { minutes: Math.round((km / 50) * 60 * 1.25), estimated: true };
+  const result = { minutes: Math.round((km / 50) * 60 * 1.25), km, estimated: true };
   routeCache[key] = result;
   return result;
 }
