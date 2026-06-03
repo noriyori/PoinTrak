@@ -83,7 +83,7 @@ function acceptSuggestion(id) {
 }
 
 function addCheck(text, assignee) {
-  const c = { id: uid(), text, assignee: assignee || "", done: false };
+  const c = { id: uid(), text, assignee: assignee || "", done: false, by: getMe() };
   trip.checklist.push(c);
   saveTrip();
   syncSet("checklist", c);
@@ -148,15 +148,12 @@ function bootApp() {
 
   tryLoadTripFromHash();
 
-  // ask for a name once so edits are attributed
-  if (!getMe()) {
-    const name = prompt("What's your name? (so your wife & friend see who added what)");
-    if (name) setMe(name.trim());
-  }
-
   renderAll();
   wireEvents();
   initSync();
+
+  // Ask who you are (once) so every edit is attributed.
+  if (!getMe()) identityPicker();
 }
 
 function wireEvents() {
@@ -203,10 +200,7 @@ function wireEvents() {
   });
 
   // Identity
-  document.getElementById("btn-rename-me").addEventListener("click", () => {
-    const name = prompt("Your name:", getMe());
-    if (name !== null) { setMe(name.trim()); renderHeader(); }
-  });
+  document.getElementById("btn-rename-me").addEventListener("click", () => identityPicker());
   document.getElementById("btn-who").addEventListener("click", () => {
     const list = trip.collaborators.length ? trip.collaborators.join(", ") : "No one yet";
     toast("Planning together: " + list);
