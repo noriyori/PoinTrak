@@ -126,7 +126,7 @@ function openModal(html) {
 function closeModal() {
   document.getElementById("modal").hidden = true;
   document.getElementById("modal-body").innerHTML = "";
-  _openCommentsItem = null;
+  _openComments = null;
 }
 
 /* ============================================================
@@ -171,12 +171,17 @@ function identityPicker() {
 }
 
 /* ============================================================
-   Comments — lightweight discussion thread per timeline item
+   Comments — lightweight discussion threads, reusable for
+   timeline items and suggestions alike.
    ============================================================ */
-let _openCommentsItem = null;
+let _openComments = null; // { collection, id }
 
-function commentListHtml(it) {
-  const comments = it.comments || [];
+function findEntity(collection, id) {
+  return (trip[collection] || []).find((x) => x.id === id);
+}
+
+function commentListHtml(entity) {
+  const comments = entity.comments || [];
   if (!comments.length)
     return `<p class="empty-hint">No comments yet — start the discussion 👇</p>`;
   return comments
@@ -196,16 +201,17 @@ function commentListHtml(it) {
     .join("");
 }
 
-function commentsModal(itemId) {
-  const it = trip.items.find((x) => x.id === itemId);
-  if (!it) return;
-  _openCommentsItem = itemId;
+function commentsModal(collection, id) {
+  const entity = findEntity(collection, id);
+  if (!entity) return;
+  _openComments = { collection, id };
   const me = getMe();
-  const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
+  const icon =
+    collection === "items" ? ITEM_TYPES[entity.type]?.icon || "🎟️" : "💡";
 
   openModal(`
-    <h2>${meta.icon} ${escapeHtml(it.title)}</h2>
-    <div class="cmt-thread">${commentListHtml(it)}</div>
+    <h2>${icon} ${escapeHtml(entity.title)}</h2>
+    <div class="cmt-thread">${commentListHtml(entity)}</div>
     <form id="cmt-form" class="inline-form">
       <input id="cmt-input" autocomplete="off"
         placeholder="${me ? "Comment as " + escapeHtml(me) + "…" : "Add a comment…"}" />
@@ -221,7 +227,7 @@ function commentsModal(itemId) {
     const input = document.getElementById("cmt-input");
     const v = input.value.trim();
     if (!v) return;
-    addComment(itemId, v);
+    addComment(collection, id, v);
     input.value = "";
     refreshOpenComments();
   });
@@ -229,18 +235,18 @@ function commentsModal(itemId) {
 
 /** Live-update an open comment thread (used after remote sync changes). */
 function refreshOpenComments() {
-  if (!_openCommentsItem) return;
+  if (!_openComments) return;
   const wrap = document.querySelector(".cmt-thread");
   if (!wrap) {
-    _openCommentsItem = null;
+    _openComments = null;
     return;
   }
-  const it = trip.items.find((x) => x.id === _openCommentsItem);
-  if (!it) {
+  const entity = findEntity(_openComments.collection, _openComments.id);
+  if (!entity) {
     closeModal();
     return;
   }
-  wrap.innerHTML = commentListHtml(it);
+  wrap.innerHTML = commentListHtml(entity);
   wrap.scrollTop = wrap.scrollHeight;
 }
 
@@ -469,7 +475,7 @@ function renderTimeline() {
       `);
       card.querySelector('[data-act="edit"]').addEventListener("click", () => itemEditor(it));
       card.querySelector('[data-act="done"]').addEventListener("click", () => toggleItemDone(it.id));
-      card.querySelector('[data-act="comments"]').addEventListener("click", () => commentsModal(it.id));
+      card.querySelector('[data-act="comments"]').addEventListener("click", () => commentsModal("items", it.id));
       group.appendChild(card);
     }
     wrap.appendChild(group);
@@ -500,6 +506,7 @@ function renderSuggestions() {
         <div class="card-foot">
           <button class="vote">👍 ${s.votes || 0}</button>
           ${voterAvatars}
+          <button class="mini cmt-btn">💬 ${(s.comments || []).length || ""}</button>
           <span class="spacer"></span>
           ${s.accepted ? '<span class="by">✓ on timeline</span>'
             : '<button class="mini accept">Add to timeline</button><button class="mini del">Remove</button>'}
@@ -507,6 +514,7 @@ function renderSuggestions() {
       </div>
     `);
     card.querySelector(".vote").addEventListener("click", () => voteSuggestion(s.id));
+    card.querySelector(".cmt-btn").addEventListener("click", () => commentsModal("suggestions", s.id));
     if (!s.accepted) {
       card.querySelector(".accept").addEventListener("click", () => acceptSuggestion(s.id));
       card.querySelector(".del").addEventListener("click", () => removeSuggestion(s.id));
