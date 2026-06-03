@@ -60,15 +60,21 @@
     </header>
 
     <nav class="tabs">
-      <button class="tab active" data-tab="timeline">🗓 Timeline</button>
+      <button class="tab active" data-tab="overview">🏠 Overview</button>
+      <button class="tab" data-tab="timeline">🗓 Timeline</button>
       <button class="tab" data-tab="map">🗺 Route Map</button>
       <button class="tab" data-tab="suggestions">💡 Suggestions <span id="sugg-badge" class="badge" hidden>0</span></button>
       <button class="tab" data-tab="checklist">✅ Checklist</button>
     </nav>
 
     <main class="content">
+      <!-- ---------- Overview (home) ---------- -->
+      <section id="tab-overview" class="tab-panel active">
+        <div id="overview" class="overview-grid"></div>
+      </section>
+
       <!-- ---------- Timeline ---------- -->
-      <section id="tab-timeline" class="tab-panel active">
+      <section id="tab-timeline" class="tab-panel">
         <div class="panel-head">
           <h2>Itinerary</h2>
           <button id="btn-add-item" class="primary">+ Add to itinerary</button>

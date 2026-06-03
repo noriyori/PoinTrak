@@ -556,10 +556,179 @@ function renderHeader() {
   document.getElementById("me-name").innerHTML = me ? avatar(me, true) : "—";
 }
 
+function tabIsActive(name) {
+  const t = document.querySelector(`.tab[data-tab="${name}"]`);
+  return t && t.classList.contains("active");
+}
+
+/** Switch tabs (used by tab clicks and "view all" links in the overview). */
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((t) =>
+    t.classList.toggle("active", t.dataset.tab === name)
+  );
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  const panel = document.getElementById("tab-" + name);
+  if (panel) panel.classList.add("active");
+  if (name === "map") refreshMap();
+  if (name === "overview") renderOverview();
+}
+
 function renderAll() {
   renderHeader();
   renderTimeline();
   renderSuggestions();
   renderChecklist();
-  if (document.querySelector('.tab[data-tab="map"]').classList.contains("active")) refreshMap();
+  if (tabIsActive("overview")) renderOverview();
+  if (tabIsActive("map")) refreshMap();
+}
+
+/* ============================================================
+   Overview — the "home" dashboard tying everything together
+   ============================================================ */
+function renderOverview() {
+  const wrap = document.getElementById("overview");
+  if (!wrap) return;
+
+  const items = orderedItems();
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = items.filter((it) => !it.date || it.date >= today);
+  const nextItems = (upcoming.length ? upcoming : items).slice(0, 5);
+
+  const pendingSugg = trip.suggestions.filter((s) => !s.accepted);
+  const topSugg = [...pendingSugg].sort((a, b) => (b.votes || 0) - (a.votes || 0)).slice(0, 3);
+
+  const doneCount = trip.checklist.filter((c) => c.done).length;
+  const totalCount = trip.checklist.length;
+  const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+  const openChecks = trip.checklist.filter((c) => !c.done).slice(0, 4);
+
+  const located = items.filter((it) => it.location && typeof it.location.lat === "number");
+
+  // ----- Hero -----
+  const countdown = tripCountdown();
+  const crew = (trip.collaborators.length ? trip.collaborators : USERS)
+    .map((n) => avatar(n, true))
+    .join("");
+  const hero = `
+    <div class="ov-card ov-hero">
+      <div class="ov-hero-top">
+        <div>
+          <div class="ov-hero-title">${escapeHtml(trip.name || "Your trip")}</div>
+          <div class="ov-hero-dates">${tripDateRange()}</div>
+        </div>
+        ${countdown ? `<div class="ov-countdown">${countdown}</div>` : ""}
+      </div>
+      <div class="ov-stats">
+        <div class="ov-stat"><span class="num">${items.length}</span><span class="lbl">itinerary items</span></div>
+        <div class="ov-stat"><span class="num">${pendingSugg.length}</span><span class="lbl">open suggestions</span></div>
+        <div class="ov-stat"><span class="num">${doneCount}/${totalCount}</span><span class="lbl">to-dos done</span></div>
+        <div class="ov-stat"><span class="num">${located.length}</span><span class="lbl">stops mapped</span></div>
+      </div>
+      <div class="ov-crew">Planning together: <span class="ov-crew-list">${crew}</span></div>
+    </div>`;
+
+  // ----- Upcoming itinerary -----
+  const upcomingHtml = `
+    <div class="ov-card">
+      <div class="ov-card-head"><h3>🗓 Up next</h3><button class="link ov-go" data-go="timeline">View all →</button></div>
+      ${
+        nextItems.length
+          ? `<ul class="ov-list">${nextItems
+              .map((it) => {
+                const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
+                const when = formatWhen(it) || "Unscheduled";
+                return `<li class="ov-li ${it.done ? "ov-done" : ""}">
+                  <span class="ov-ico">${meta.icon}</span>
+                  <span class="ov-li-main">
+                    <span class="ov-li-title">${escapeHtml(it.title)}</span>
+                    <span class="ov-li-sub">${escapeHtml(when)}${it.location?.name ? " · " + escapeHtml(it.location.name) : ""}</span>
+                  </span>
+                  ${it.by ? avatar(it.by, false) : ""}
+                </li>`;
+              })
+              .join("")}</ul>`
+          : `<p class="empty-hint">No itinerary items yet. <button class="link ov-go" data-go="timeline">Add the first one →</button></p>`
+      }
+    </div>`;
+
+  // ----- Mini map -----
+  const mapHtml = `
+    <div class="ov-card ov-map-card">
+      <div class="ov-card-head"><h3>🗺 Route</h3><button class="link ov-go" data-go="map">Open full map →</button></div>
+      <div id="map-overview"></div>
+    </div>`;
+
+  // ----- Top suggestions -----
+  const suggHtml = `
+    <div class="ov-card">
+      <div class="ov-card-head"><h3>💡 Top suggestions</h3><button class="link ov-go" data-go="suggestions">View all →</button></div>
+      ${
+        topSugg.length
+          ? `<ul class="ov-list">${topSugg
+              .map(
+                (s) => `<li class="ov-li">
+                  <span class="ov-vote">👍 ${s.votes || 0}</span>
+                  <span class="ov-li-main">
+                    <span class="ov-li-title">${escapeHtml(s.title)}</span>
+                    <span class="ov-li-sub">by ${escapeHtml(s.by || "someone")}</span>
+                  </span>
+                </li>`
+              )
+              .join("")}</ul>`
+          : `<p class="empty-hint">No suggestions yet. <button class="link ov-go" data-go="suggestions">Suggest something →</button></p>`
+      }
+    </div>`;
+
+  // ----- Checklist progress -----
+  const checkHtml = `
+    <div class="ov-card">
+      <div class="ov-card-head"><h3>✅ Checklist</h3><button class="link ov-go" data-go="checklist">View all →</button></div>
+      <div class="ov-progress"><div class="ov-progress-bar" style="width:${pct}%"></div></div>
+      <div class="ov-progress-lbl">${doneCount} of ${totalCount} done (${pct}%)</div>
+      ${
+        openChecks.length
+          ? `<ul class="ov-list">${openChecks
+              .map(
+                (c) => `<li class="ov-li">
+                  <span class="ov-ico">⬜</span>
+                  <span class="ov-li-main"><span class="ov-li-title">${escapeHtml(c.text)}</span></span>
+                  ${c.assignee ? avatar(c.assignee, false) : ""}
+                </li>`
+              )
+              .join("")}</ul>`
+          : `<p class="empty-hint">${totalCount ? "All done! 🎉" : "No to-dos yet."}</p>`
+      }
+    </div>`;
+
+  wrap.innerHTML = hero + upcomingHtml + mapHtml + suggHtml + checkHtml;
+
+  wrap.querySelectorAll(".ov-go").forEach((b) =>
+    b.addEventListener("click", () => switchTab(b.dataset.go))
+  );
+
+  refreshOverviewMap();
+}
+
+function tripDateRange() {
+  if (trip.start && trip.end) return prettyDate(trip.start) + " → " + prettyDate(trip.end);
+  if (trip.start) return "from " + prettyDate(trip.start);
+  return "Dates not set yet";
+}
+
+function tripCountdown() {
+  if (!trip.start) return "";
+  const start = new Date(trip.start + "T00:00:00");
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const days = Math.round((start - now) / 86400000);
+  if (isNaN(days)) return "";
+  if (days > 1) return `${days} days to go`;
+  if (days === 1) return "Tomorrow!";
+  if (days === 0) return "Today! 🎉";
+  // during/after trip
+  if (trip.end) {
+    const end = new Date(trip.end + "T00:00:00");
+    if (now <= end) return "On the trip ✈️";
+  }
+  return "Trip complete";
 }
