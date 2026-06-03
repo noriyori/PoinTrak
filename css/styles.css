@@ -1,23 +1,24 @@
 :root {
-  --bg: #0f1620;
-  --bg-soft: #16202e;
-  --panel: #1b2738;
-  --panel-2: #22314a;
-  --line: #2c3a52;
-  --text: #e8eef7;
-  --muted: #93a2bc;
-  --accent: #4f9dff;
-  --accent-2: #34d399;
-  --warn: #fbbf24;
-  --danger: #f87171;
+  --bg: #eef2f8;        /* page background */
+  --bg-soft: #ffffff;   /* inputs, subtle fills */
+  --panel: #ffffff;     /* cards */
+  --panel-2: #f1f5fb;   /* selected / hover fills */
+  --line: #d6deea;      /* borders */
+  --text: #1e293b;      /* primary text (slate-800) */
+  --muted: #5b6b82;     /* secondary text */
+  --accent: #2563eb;    /* primary blue */
+  --accent-2: #059669;  /* green */
+  --warn: #d97706;
+  --danger: #dc2626;
+  --on-accent: #ffffff; /* text on accent-colored buttons */
   --radius: 12px;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --shadow: 0 6px 22px rgba(30, 41, 59, 0.10);
 
   /* item type colors */
-  --t-hotel: #a78bfa;
-  --t-event: #4f9dff;
-  --t-travel: #34d399;
-  --t-task: #fbbf24;
+  --t-hotel: #8b5cf6;
+  --t-event: #2563eb;
+  --t-travel: #059669;
+  --t-task: #d97706;
 }
 
 * { box-sizing: border-box; }
@@ -56,7 +57,7 @@ input::placeholder { color: var(--muted); }
   inset: 0;
   display: grid;
   place-items: center;
-  background: radial-gradient(1200px 600px at 50% -10%, #1c2c44 0%, var(--bg) 60%);
+  background: radial-gradient(1200px 600px at 50% -10%, #dbe7fb 0%, var(--bg) 60%);
   z-index: 50;
 }
 .lock-card {
@@ -77,7 +78,7 @@ input::placeholder { color: var(--muted); }
 .lock-card input { text-align: center; padding: 12px; }
 .lock-card button {
   background: var(--accent);
-  color: #04101f;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   padding: 12px;
@@ -131,7 +132,7 @@ button.ghost {
 button.ghost:hover { background: var(--panel-2); }
 button.primary {
   background: var(--accent);
-  color: #04101f;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   padding: 9px 14px;
@@ -167,7 +168,7 @@ button.link {
 .tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .badge {
   background: var(--accent);
-  color: #04101f;
+  color: #ffffff;
   border-radius: 10px;
   padding: 1px 7px;
   font-size: 11px;
@@ -190,6 +191,105 @@ button.link {
 .panel-head h2 { margin: 0; font-size: 20px; }
 .map-hint, .empty-hint { color: var(--muted); font-size: 13px; }
 .empty-hint { margin: 8px 0; }
+
+/* ---------- Overview dashboard ---------- */
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.ov-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+}
+.ov-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.ov-card-head h3 { margin: 0; font-size: 15px; }
+
+.ov-hero { grid-column: 1 / -1; }
+.ov-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ov-hero-title { font-size: 24px; font-weight: 800; }
+.ov-hero-dates { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.ov-countdown {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.ov-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 16px 0 12px;
+}
+.ov-stat {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+.ov-stat .num { display: block; font-size: 22px; font-weight: 800; color: var(--accent); }
+.ov-stat .lbl { font-size: 12px; color: var(--muted); }
+.ov-crew { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ov-crew-list { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+
+.ov-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ov-li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.ov-li:last-child { border-bottom: none; }
+.ov-ico { font-size: 18px; width: 22px; text-align: center; }
+.ov-li-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ov-li-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-li-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-done .ov-li-title { text-decoration: line-through; opacity: 0.55; }
+.ov-vote {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ov-map-card #map-overview {
+  height: 240px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.ov-progress {
+  height: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.ov-progress-bar { height: 100%; background: var(--accent-2); border-radius: 20px; transition: width .3s; }
+.ov-progress-lbl { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+
+@media (max-width: 720px) {
+  .overview-grid { grid-template-columns: 1fr; }
+  .ov-stats { grid-template-columns: repeat(2, 1fr); }
+}
 
 /* ---------- Timeline ---------- */
 .timeline { display: flex; flex-direction: column; gap: 22px; }
@@ -257,7 +357,7 @@ button.link {
 .leaflet-popup-content { font-size: 13px; }
 .map-marker-num {
   background: var(--accent);
-  color: #04101f;
+  color: #ffffff;
   width: 26px; height: 26px;
   border-radius: 50%;
   display: grid; place-items: center;
@@ -324,7 +424,7 @@ button.link {
   border-radius: 50%;
   display: grid; place-items: center;
   font-size: 10px; font-weight: 800;
-  color: #04101f;
+  color: #ffffff;
   flex: 0 0 auto;
   box-shadow: 0 0 0 1px rgba(0,0,0,.25) inset;
 }
@@ -401,7 +501,7 @@ button.link {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(4, 8, 14, 0.6);
+  background: rgba(15, 23, 42, 0.45);
   display: grid;
   place-items: center;
   z-index: 40;
