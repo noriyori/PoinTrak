@@ -361,9 +361,14 @@ function renderChecklist() {
 }
 
 function renderHeader() {
-  document.getElementById("trip-name").value = trip.name || "";
-  document.getElementById("trip-start").value = trip.start || "";
-  document.getElementById("trip-end").value = trip.end || "";
+  // Don't overwrite a field the user is actively typing in (matters for live sync).
+  const set = (id, val) => {
+    const node = document.getElementById(id);
+    if (node && document.activeElement !== node) node.value = val || "";
+  };
+  set("trip-name", trip.name);
+  set("trip-start", trip.start);
+  set("trip-end", trip.end);
   document.getElementById("who-count").textContent = trip.collaborators.length;
   document.getElementById("me-name").textContent = getMe() || "—";
 }
