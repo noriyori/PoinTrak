@@ -747,7 +747,7 @@ function renderOverview() {
   // ----- Upcoming itinerary -----
   const upcomingHtml = `
     <div class="ov-card">
-      <div class="ov-card-head"><h3>🗓 Up next</h3><button class="link ov-go" data-go="timeline">View all →</button></div>
+      <div class="ov-card-head"><h3>🗓 Up next</h3><div class="ov-head-actions"><button class="ov-add" data-add="item">+ Add</button><button class="link ov-go" data-go="timeline">View all →</button></div></div>
       ${
         nextItems.length
           ? `<ul class="ov-list">${nextItems
@@ -764,7 +764,7 @@ function renderOverview() {
                 </li>`;
               })
               .join("")}</ul>`
-          : `<p class="empty-hint">No itinerary items yet. <button class="link ov-go" data-go="timeline">Add the first one →</button></p>`
+          : `<p class="empty-hint">No itinerary items yet. <button class="link ov-add" data-add="item">Add the first one →</button></p>`
       }
     </div>`;
 
@@ -778,7 +778,7 @@ function renderOverview() {
   // ----- Top suggestions -----
   const suggHtml = `
     <div class="ov-card">
-      <div class="ov-card-head"><h3>💡 Top suggestions</h3><button class="link ov-go" data-go="suggestions">View all →</button></div>
+      <div class="ov-card-head"><h3>💡 Top suggestions</h3><div class="ov-head-actions"><button class="ov-add" data-add="suggestion">+ Add</button><button class="link ov-go" data-go="suggestions">View all →</button></div></div>
       ${
         topSugg.length
           ? `<ul class="ov-list">${topSugg
@@ -792,14 +792,14 @@ function renderOverview() {
                 </li>`
               )
               .join("")}</ul>`
-          : `<p class="empty-hint">No suggestions yet. <button class="link ov-go" data-go="suggestions">Suggest something →</button></p>`
+          : `<p class="empty-hint">No suggestions yet. <button class="link ov-add" data-add="suggestion">Suggest something →</button></p>`
       }
     </div>`;
 
   // ----- Checklist progress -----
   const checkHtml = `
     <div class="ov-card">
-      <div class="ov-card-head"><h3>✅ Checklist</h3><button class="link ov-go" data-go="checklist">View all →</button></div>
+      <div class="ov-card-head"><h3>✅ Checklist</h3><div class="ov-head-actions"><button class="ov-add" data-add="check">+ Add</button><button class="link ov-go" data-go="checklist">View all →</button></div></div>
       <div class="ov-progress"><div class="ov-progress-bar" style="width:${pct}%"></div></div>
       <div class="ov-progress-lbl">${doneCount} of ${totalCount} done (${pct}%)</div>
       ${
@@ -822,8 +822,47 @@ function renderOverview() {
   wrap.querySelectorAll(".ov-go").forEach((b) =>
     b.addEventListener("click", () => switchTab(b.dataset.go))
   );
+  wrap.querySelectorAll(".ov-add").forEach((b) =>
+    b.addEventListener("click", () => {
+      if (b.dataset.add === "item") itemEditor(null);
+      else if (b.dataset.add === "suggestion") suggestionEditor();
+      else if (b.dataset.add === "check") checklistEditor();
+    })
+  );
 
   refreshOverviewMap();
+}
+
+/** Quick "add a to-do" modal (used from the Overview tile). */
+function checklistEditor() {
+  openModal(`
+    <h2>Add a to-do</h2>
+    <form id="check-form">
+      <div class="form-row">
+        <label>Task</label>
+        <input id="c-text" required placeholder="e.g. Book travel insurance" />
+      </div>
+      <div class="form-row">
+        <label>Assignee (optional)</label>
+        <input id="c-assignee" list="people-list" placeholder="Peter / Niszki / JS" />
+      </div>
+      <div class="modal-actions">
+        <button class="primary" type="submit">Add to-do</button>
+      </div>
+    </form>
+  `);
+  document.getElementById("check-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = document.getElementById("c-text").value.trim();
+    if (!text) return;
+    addCheck(text, document.getElementById("c-assignee").value.trim());
+    closeModal();
+  });
+}
+
+/** Re-render the Overview dashboard when it's the visible tab. */
+function refreshOverviewIfActive() {
+  if (tabIsActive("overview")) renderOverview();
 }
 
 function tripDateRange() {

@@ -212,6 +212,17 @@ button.link {
   margin-bottom: 10px;
 }
 .ov-card-head h3 { margin: 0; font-size: 15px; }
+.ov-head-actions { display: flex; align-items: center; gap: 10px; }
+.ov-add {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ov-add:hover { filter: brightness(1.08); }
 
 .ov-hero { grid-column: 1 / -1; }
 .ov-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
