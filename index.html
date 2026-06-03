@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PoinTrak · Trip Planner</title>
+  <meta name="description" content="A collaborative trip planner with itinerary timeline, dynamic route map, suggestions and checklists." />
+
+  <!-- Leaflet (OpenStreetMap, no API key required) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="preconnect" href="https://nominatim.openstreetmap.org" />
+</head>
+<body>
+  <!-- ============ Password Gate ============ -->
+  <div id="lock-screen" class="lock-screen">
+    <form id="lock-form" class="lock-card" autocomplete="off">
+      <div class="lock-logo">📍</div>
+      <h1>PoinTrak</h1>
+      <p class="lock-tag">Your collaborative trip planner</p>
+      <input
+        id="password-input"
+        type="password"
+        placeholder="Enter trip password"
+        aria-label="Trip password"
+        autofocus
+      />
+      <button type="submit">Unlock</button>
+      <p id="lock-error" class="lock-error" hidden>Wrong password — try again.</p>
+    </form>
+  </div>
+
+  <!-- ============ App ============ -->
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">📍</span>
+        <div class="brand-text">
+          <strong>PoinTrak</strong>
+          <input id="trip-name" class="trip-name" placeholder="Name your trip…" />
+        </div>
+      </div>
+      <div class="trip-dates">
+        <label>From <input id="trip-start" type="date" /></label>
+        <label>To <input id="trip-end" type="date" /></label>
+      </div>
+      <div class="topbar-actions">
+        <button id="btn-who" class="ghost" title="Who's planning">👥 <span id="who-count">0</span></button>
+        <button id="btn-share" class="ghost" title="Share / sync">🔗 Share</button>
+        <button id="btn-export" class="ghost" title="Download trip file">⬇ Export</button>
+        <button id="btn-import" class="ghost" title="Load trip file">⬆ Import</button>
+        <input id="file-input" type="file" accept="application/json" hidden />
+        <button id="btn-lock" class="ghost" title="Lock app">🔒</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="timeline">🗓 Timeline</button>
+      <button class="tab" data-tab="map">🗺 Route Map</button>
+      <button class="tab" data-tab="suggestions">💡 Suggestions <span id="sugg-badge" class="badge" hidden>0</span></button>
+      <button class="tab" data-tab="checklist">✅ Checklist</button>
+    </nav>
+
+    <main class="content">
+      <!-- ---------- Timeline ---------- -->
+      <section id="tab-timeline" class="tab-panel active">
+        <div class="panel-head">
+          <h2>Itinerary</h2>
+          <button id="btn-add-item" class="primary">+ Add to itinerary</button>
+        </div>
+        <div id="timeline" class="timeline"></div>
+        <p id="timeline-empty" class="empty-hint">
+          Nothing planned yet. Add hotel stays, events, travel legs and tasks
+          (like picking up or dropping off a rental car) to build your timeline.
+        </p>
+      </section>
+
+      <!-- ---------- Map ---------- -->
+      <section id="tab-map" class="tab-panel">
+        <div class="panel-head">
+          <h2>Route Map</h2>
+          <span class="map-hint">Markers &amp; the route line update automatically from your timeline.</span>
+        </div>
+        <div id="map"></div>
+      </section>
+
+      <!-- ---------- Suggestions ---------- -->
+      <section id="tab-suggestions" class="tab-panel">
+        <div class="panel-head">
+          <h2>Suggested Activities</h2>
+          <button id="btn-add-suggestion" class="primary">+ Suggest something</button>
+        </div>
+        <p class="empty-hint">
+          Anyone planning can drop ideas here. Vote them up, then accept the best
+          ones straight onto the timeline.
+        </p>
+        <div id="suggestions" class="cards"></div>
+      </section>
+
+      <!-- ---------- Checklist ---------- -->
+      <section id="tab-checklist" class="tab-panel">
+        <div class="panel-head">
+          <h2>Planning Checklist</h2>
+        </div>
+        <form id="checklist-form" class="inline-form">
+          <input id="checklist-input" placeholder="Add a to-do (e.g. Book travel insurance)" />
+          <input id="checklist-assignee" class="who-input" placeholder="Assignee (optional)" />
+          <button class="primary" type="submit">Add</button>
+        </form>
+        <ul id="checklist" class="checklist"></ul>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <span id="save-status">All changes saved locally</span>
+      <span class="me">You: <strong id="me-name">—</strong> <button id="btn-rename-me" class="link">change</button></span>
+    </footer>
+  </div>
+
+  <!-- ============ Modal ============ -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card">
+      <button id="modal-close" class="modal-close" aria-label="Close">×</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ============ Toast ============ -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="js/storage.js"></script>
+  <script src="js/geocode.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
