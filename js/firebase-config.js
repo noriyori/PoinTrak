@@ -20,11 +20,13 @@
    ============================================================ */
 
 window.FIREBASE_CONFIG = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_PROJECT.firebaseapp.com",
-  databaseURL: "https://PASTE_PROJECT-default-rtdb.firebaseio.com",
-  projectId: "PASTE_PROJECT",
-  appId: "PASTE_APP_ID",
+  apiKey: "AIzaSyCgCOtJ2v2buRjGOLesJSKS3UTP4IalisI",
+  authDomain: "trippz-68e73.firebaseapp.com",
+  databaseURL: "https://trippz-68e73-default-rtdb.firebaseio.com",
+  projectId: "trippz-68e73",
+  storageBucket: "trippz-68e73.firebasestorage.app",
+  messagingSenderId: "1011479641608",
+  appId: "1:1011479641608:web:8d3feba0269ab8491ddbbd",
 };
 
 // Everyone planning the SAME trip must use the SAME room code.
