@@ -278,7 +278,7 @@ function itemEditor(existing) {
           <input id="f-date" type="date" value="${it.date || ""}" />
         </div>
         <div class="form-row">
-          <label>Time</label>
+          <label>Arrival time</label>
           <input id="f-time" type="time" value="${it.time || ""}" />
         </div>
       </div>
@@ -446,7 +446,7 @@ function renderTimeline() {
     for (const it of groups[key]) {
       const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
       const chips = [];
-      if (it.time) chips.push(`<span class="chip">⏰ ${escapeHtml(it.time)}</span>`);
+      if (it.time) chips.push(`<span class="chip">🛬 Arrive ${escapeHtml(it.time)}</span>`);
       if (it.type === "hotel" && it.endDate) chips.push(`<span class="chip">🛏 until ${prettyDate(it.endDate)}</span>`);
       if (it.location?.name) {
         const am = appleMapsUrl(it.location);
@@ -465,6 +465,7 @@ function renderTimeline() {
             <p class="tl-title">${escapeHtml(it.title)}</p>
             <div class="tl-meta">${chips.join("")}</div>
             ${it.notes ? `<p class="tl-notes">${escapeHtml(it.notes)}</p>` : ""}
+            <div class="tl-leave" data-leave-for="${it.id}"></div>
           </div>
           <div class="tl-actions">
             <button data-act="comments" title="Comments">💬 ${(it.comments || []).length || ""}</button>
@@ -479,6 +480,72 @@ function renderTimeline() {
       group.appendChild(card);
     }
     wrap.appendChild(group);
+  }
+
+  // Fill in "leave by" times asynchronously (needs travel-time lookups).
+  annotateLeaveTimes(items);
+}
+
+/* ============================================================
+   "Leave by" calculation
+   For each located stop with an arrival time, work out when you
+   must leave to reach the NEXT located+timed stop on the same day,
+   based on estimated driving time between them.
+   ============================================================ */
+let _leaveToken = 0; // guards against overlapping async renders
+
+function shiftTime(hhmm, deltaMin) {
+  const [h, m] = hhmm.split(":").map(Number);
+  let total = h * 60 + m + deltaMin;
+  let dayOffset = 0;
+  while (total < 0) { total += 1440; dayOffset--; }
+  while (total >= 1440) { total -= 1440; dayOffset++; }
+  const hh = String(Math.floor(total / 60)).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+  return { time: `${hh}:${mm}`, dayOffset };
+}
+
+function humanDuration(mins) {
+  if (mins < 1) return "<1 min";
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+async function annotateLeaveTimes(items) {
+  const token = ++_leaveToken;
+  const hasCoords = (it) => it.location && typeof it.location.lat === "number";
+
+  for (let i = 0; i < items.length - 1; i++) {
+    const cur = items[i];
+    const next = items[i + 1];
+    const node = document.querySelector(`.tl-leave[data-leave-for="${cur.id}"]`);
+    if (!node) continue;
+
+    // Only compute when we can: both located, next has an arrival time,
+    // and they're on the same day (or undated).
+    if (!hasCoords(cur) || !hasCoords(next) || !next.time) { node.innerHTML = ""; continue; }
+    if (cur.date && next.date && cur.date !== next.date) { node.innerHTML = ""; continue; }
+
+    node.innerHTML = `<span class="leave-chip leave-calc">⏳ estimating drive to ${escapeHtml(next.title)}…</span>`;
+
+    const { minutes, estimated } = await travelMinutes(cur.location, next.location);
+    if (token !== _leaveToken) return; // a newer render superseded us
+
+    const leave = shiftTime(next.time, -minutes);
+    const tight = leave.dayOffset < 0 || (cur.time && leave.time < cur.time);
+    const drive = humanDuration(minutes) + (estimated ? " est." : "");
+    const prevDay = leave.dayOffset < 0 ? " (day before)" : "";
+
+    // re-query: the node may have been replaced during the await
+    const live = document.querySelector(`.tl-leave[data-leave-for="${cur.id}"]`);
+    if (!live) continue;
+    live.innerHTML =
+      `<span class="leave-chip ${tight ? "leave-warn" : "leave-ok"}">` +
+      `🚗 Leave by <strong>${leave.time}${prevDay}</strong> for ${escapeHtml(next.title)} · ~${drive}` +
+      (tight ? " · ⚠️ tight connection" : "") +
+      `</span>`;
   }
 }
 
