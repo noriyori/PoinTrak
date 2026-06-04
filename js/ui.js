@@ -325,6 +325,18 @@ function itemEditor(existing, defaults) {
         <label>Title</label>
         <input id="f-title" required placeholder="e.g. Pick up rental car" value="${escapeHtml(it.title || "")}" />
       </div>
+      <div class="form-row">
+        <label>How you'll travel to the next stop</label>
+        <select id="f-mode">${modeOptions(it.legMode || "car")}</select>
+      </div>
+      <div class="form-row" id="flight-row" ${it.legMode === "flight" ? "" : "hidden"}>
+        <label>Flight details</label>
+        <div class="form-grid3">
+          <input id="f-flightno" placeholder="Flight # (e.g. LX 015)" value="${escapeHtml(it.flightNo || "")}" />
+          <input id="f-fromair" placeholder="From (e.g. JFK)" value="${escapeHtml(it.fromAir || "")}" />
+          <input id="f-toair" placeholder="To (e.g. ZRH)" value="${escapeHtml(it.toAir || "")}" />
+        </div>
+      </div>
       <div class="form-grid">
         <div class="form-row">
           <label>Date</label>
@@ -350,14 +362,6 @@ function itemEditor(existing, defaults) {
         <label>Arrival date <span class="lbl-soft">— only if it arrives on a later day (e.g. overnight flight)</span></label>
         <input id="f-arrdate" type="date" value="${it.arriveDate || ""}" />
       </div>
-      <div class="form-row" id="flight-row" ${it.legMode === "flight" ? "" : "hidden"}>
-        <label>Flight details</label>
-        <div class="form-grid3">
-          <input id="f-flightno" placeholder="Flight # (e.g. LX 015)" value="${escapeHtml(it.flightNo || "")}" />
-          <input id="f-fromair" placeholder="From (e.g. JFK)" value="${escapeHtml(it.fromAir || "")}" />
-          <input id="f-toair" placeholder="To (e.g. ZRH)" value="${escapeHtml(it.toAir || "")}" />
-        </div>
-      </div>
       <div class="form-row" id="enddate-row" ${it.type === "hotel" ? "" : "hidden"}>
         <label>Check-out date</label>
         <input id="f-enddate" type="date" value="${it.endDate || ""}" />
@@ -368,10 +372,6 @@ function itemEditor(existing, defaults) {
         <div class="geo-result" id="geo-out">${
           it.location?.lat ? "📍 Pinned on map" : "Type a place to pin it on the route map."
         }</div>
-      </div>
-      <div class="form-row">
-        <label>How you'll travel to the next stop</label>
-        <select id="f-mode">${modeOptions(it.legMode || "car")}</select>
       </div>
       <div class="form-row">
         <label>Notes</label>
@@ -431,7 +431,7 @@ function itemEditor(existing, defaults) {
   }, 600);
   locInput.addEventListener("input", doGeo);
 
-  document.getElementById("item-form").addEventListener("submit", (e) => {
+  document.getElementById("item-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const data = {
       id: it.id || uid(),
@@ -453,6 +453,17 @@ function itemEditor(existing, defaults) {
       by: it.by || getMe(),
     };
     if (!data.title) return;
+
+    // For flights, geocode the airport codes so we can draw the real arc.
+    if (data.legMode === "flight") {
+      data.fromLoc = await geocodeAirport(data.fromAir);
+      data.toLoc = await geocodeAirport(data.toAir);
+      // If no explicit location was set, pin the item at the destination airport.
+      if (!data.location && data.toLoc) {
+        data.location = { name: data.toAir, lat: data.toLoc.lat, lng: data.toLoc.lng, label: data.toLoc.label };
+      }
+    }
+
     upsertItem(data);
     closeModal();
   });

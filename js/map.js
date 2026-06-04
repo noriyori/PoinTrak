@@ -114,7 +114,15 @@ function refreshMapInto(id, opts = {}) {
     marker.addTo(entry.markers);
   });
 
-  const bounds = L.latLngBounds(latlngs);
+  // Include flight-arc airport endpoints in the view bounds.
+  const flightPts = [];
+  for (const it of trip.items) {
+    if (it.legMode === "flight" && it.fromLoc && it.toLoc) {
+      flightPts.push([it.fromLoc.lat, it.fromLoc.lng], [it.toLoc.lat, it.toLoc.lng]);
+    }
+  }
+
+  const bounds = L.latLngBounds(latlngs.concat(flightPts));
   entry.map.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
   // Leaflet needs a nudge when its container was hidden while sizing.
   setTimeout(() => entry.map.invalidateSize(), 50);
@@ -122,6 +130,32 @@ function refreshMapInto(id, opts = {}) {
   // Draw the route leg-by-leg, following real roads where possible and
   // colouring each leg by its travel mode.
   drawLegs(entry, located);
+  // Draw dedicated great-circle arcs for flights with known airports.
+  drawFlights(entry);
+}
+
+/** Draw great-circle arcs between the entered airports of flight items. */
+function drawFlights(entry) {
+  for (const it of trip.items) {
+    if (it.legMode !== "flight" || !it.fromLoc || !it.toLoc) continue;
+    const arc = greatCircle(
+      { lat: it.fromLoc.lat, lng: it.fromLoc.lng },
+      { lat: it.toLoc.lat, lng: it.toLoc.lng }
+    );
+    const line = L.polyline(arc, {
+      color: TRAVEL_MODES.flight.color,
+      weight: 2.5,
+      opacity: 0.9,
+      dashArray: "4 6",
+    });
+    if (entry.interactive) {
+      const label = [it.flightNo, [it.fromAir, it.toAir].filter(Boolean).join(" → ")]
+        .filter(Boolean)
+        .join(" · ");
+      line.bindPopup(`✈️ ${escapeHtml(label || it.title)}`);
+    }
+    line.addTo(entry.route);
+  }
 }
 
 let _mapLegToken = 0;

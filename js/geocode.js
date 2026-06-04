@@ -39,6 +39,13 @@ async function geocode(query) {
   }
 }
 
+/** Resolve an airport code/name (e.g. "ZRH", "JFK") to coordinates. */
+async function geocodeAirport(code) {
+  if (!code) return null;
+  const hit = (await geocode(code + " airport")) || (await geocode(code));
+  return hit ? { name: code, lat: hit.lat, lng: hit.lng, label: hit.label } : null;
+}
+
 /** Debounce helper for live lookups while typing. */
 function debounce(fn, ms) {
   let t;
