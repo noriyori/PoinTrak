@@ -168,12 +168,7 @@ async function orsRoute(from, to, mode) {
   return null;
 }
 
-/* ---------- Navitia (optional, real public-transit routing) ---------- */
-function navitiaEnabled() {
-  const k = window.NAVITIA_API_KEY;
-  return !!(k && !k.startsWith("PASTE"));
-}
-
+/* ---------- Transitous (keyless public-transit routing, MOTIS 2) ---------- */
 function pathKm(coords) {
   let km = 0;
   for (let i = 1; i < coords.length; i++) {
@@ -185,38 +180,61 @@ function pathKm(coords) {
   return km;
 }
 
+/** Decode a Google-encoded polyline at the given precision into [lat,lng] pairs. */
+function decodePolyline(str, precision) {
+  let index = 0, lat = 0, lng = 0, byte = 0;
+  const coords = [];
+  const factor = Math.pow(10, precision || 5);
+  while (index < str.length) {
+    let shift = 0, result = 0;
+    do { byte = str.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { byte = str.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+    coords.push([lat / factor, lng / factor]);
+  }
+  return coords;
+}
+
+function transitModeLabel(mode) {
+  const map = {
+    RAIL: "Train", HIGHSPEED_RAIL: "Train", LONG_DISTANCE: "Train", REGIONAL_RAIL: "Train",
+    NIGHT_RAIL: "Train", REGIONAL_FAST_RAIL: "Train", SUBWAY: "Metro", METRO: "Metro",
+    TRAM: "Tram", BUS: "Bus", COACH: "Coach", FERRY: "Ferry", SUBURBAN: "S-Bahn",
+  };
+  return map[mode] || mode.charAt(0) + mode.slice(1).toLowerCase().replace(/_/g, " ");
+}
+
 /**
- * Public-transit journey from Navitia (trains, metro, bus, tram + walking
- * transfers). Returns the same shape as routeLeg, or null if unavailable
- * or out of coverage. `legs` lists the transit modes used, e.g. ["Metro","Bus"].
+ * Public-transit journey from Transitous (free, no API key — trains, metro,
+ * tram, bus + walking transfers). Returns the same shape as routeLeg, or null
+ * if unavailable/out of coverage. `legs` lists the transit lines/modes used.
  */
-async function navitiaRoute(from, to) {
-  if (!navitiaEnabled()) return null;
-  const key = `nav:${from.lat.toFixed(4)},${from.lng.toFixed(4)}->${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+async function transitousRoute(from, to) {
+  const key = `tr:${from.lat.toFixed(4)},${from.lng.toFixed(4)}->${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
   if (routeCache[key]) return routeCache[key];
 
   try {
     const url =
-      `https://api.navitia.io/v1/journeys?from=${from.lng};${from.lat}` +
-      `&to=${to.lng};${to.lat}&`;
-    const res = await fetch(url, {
-      headers: { Authorization: "Basic " + btoa(window.NAVITIA_API_KEY + ":") },
-    });
+      `https://api.transitous.org/api/v1/plan?fromPlace=${from.lat},${from.lng}` +
+      `&toPlace=${to.lat},${to.lng}&arriveBy=false`;
+    const res = await fetch(url);
     if (res.ok) {
       const data = await res.json();
-      const j = data.journeys && data.journeys[0];
-      if (j) {
+      const it = data.itineraries && data.itineraries[0];
+      if (it) {
         let coords = [];
         const legs = [];
-        for (const s of j.sections || []) {
-          if (s.geojson && s.geojson.coordinates) {
-            coords = coords.concat(s.geojson.coordinates.map((c) => [c[1], c[0]]));
+        for (const leg of it.legs || []) {
+          const g = leg.legGeometry;
+          if (g && g.points) coords = coords.concat(decodePolyline(g.points, g.precision || 7));
+          if (leg.mode && leg.mode !== "WALK") {
+            legs.push(leg.routeShortName || transitModeLabel(leg.mode));
           }
-          const cm = s.display_informations && s.display_informations.commercial_mode;
-          if (cm) legs.push(cm);
         }
         const result = {
-          minutes: Math.round(j.duration / 60),
+          minutes: Math.round(it.duration / 60),
           km: coords.length ? pathKm(coords) : haversineKm(from, to),
           coords: coords.length ? coords : null,
           estimated: false,
@@ -235,15 +253,15 @@ async function navitiaRoute(from, to) {
 /**
  * Mode-aware travel estimate between two located points.
  * - car/bike/walk: OpenRouteService if configured, else OSRM driving geometry.
- * - transit (train): Navitia if configured, else a straight-line estimate.
+ * - transit (train): Transitous (keyless), else a straight-line estimate.
  * Returns { minutes, km, coords, estimated, mode, legs? }.
  */
 async function travelByMode(from, to, mode) {
   const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
 
   if (mode === "train") {
-    const nav = await navitiaRoute(from, to);
-    if (nav) return { ...nav, mode };
+    const tr = await transitousRoute(from, to);
+    if (tr) return { ...tr, mode };
     const km = haversineKm(from, to);
     return { minutes: Math.round((km / m.speed) * 60), km, coords: null, estimated: true, mode };
   }

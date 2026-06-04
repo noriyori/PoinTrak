@@ -22,18 +22,9 @@
 window.ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImFiMjYxN2RiZDc0MzRkNmJiNTRiM2RiNzcxYmQ3MjdkIiwiaCI6Im11cm11cjY0In0=";
 
 /* ============================================================
-   Navitia (optional) — REAL public-transit routing for the
-   🚆 Transit mode (trains, metro, tram, bus + walking transfers).
-   Free developer plan.
-
-   --- Setup ---
-   1. Sign up (free) at https://navitia.io/  → "Get a token".
-   2. Copy your token and paste it below, then commit & push.
-
-   Coverage note: Navitia's open data is excellent across Europe
-   (and several other regions) but not everywhere. Where there's no
-   transit coverage, the Transit mode falls back to a straight-line
-   time estimate. Like the others, this token is visible in the
-   published site — fine for a private trip, but treat it as semi-public.
+   Public transit (🚆 Transit mode) needs NO key.
+   It uses Transitous (https://transitous.org), a free, community-run
+   MOTIS routing service covering openly-published GTFS transit feeds.
+   Where a region has no transit feed yet, the Transit mode falls back
+   to a straight-line time estimate. Nothing to configure here.
    ============================================================ */
-window.NAVITIA_API_KEY = "PASTE_NAVITIA_TOKEN";
