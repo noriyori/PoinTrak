@@ -46,6 +46,61 @@ async function geocodeAirport(code) {
   return hit ? { name: code, lat: hit.lat, lng: hit.lng, label: hit.label } : null;
 }
 
+/* ---------- AeroDataBox flight-number lookup (optional, RapidAPI key) ---------- */
+function flightLookupEnabled() {
+  const k = window.AERODATABOX_RAPIDAPI_KEY;
+  return !!(k && !k.startsWith("PASTE"));
+}
+
+/**
+ * Look up a flight by number (and optional YYYY-MM-DD date).
+ * Returns { airline, from, fromName, to, toName, dep:{date,time}, arr:{date,time} }
+ * or { error } on failure.
+ */
+async function lookupFlight(number, date) {
+  if (!flightLookupEnabled()) return { error: "no-key" };
+  const num = String(number || "").replace(/\s+/g, "");
+  if (!num) return { error: "no-number" };
+
+  let url = `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(num)}`;
+  if (date) url += `/${date}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "X-RapidAPI-Key": window.AERODATABOX_RAPIDAPI_KEY,
+        "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com",
+      },
+    });
+    if (res.status === 404) return { error: "not-found" };
+    if (!res.ok) return { error: "http-" + res.status };
+    const data = await res.json();
+    const arr = Array.isArray(data) ? data : data.flights || [];
+    if (!arr.length) return { error: "not-found" };
+    const f = arr[0];
+    const dep = f.departure || {};
+    const ar = f.arrival || {};
+    const parse = (st) => {
+      const s = (st && (st.local || st.utc)) || "";
+      const m = s.match(/(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+      return m ? { date: m[1], time: m[2] } : {};
+    };
+    const code = (a) => a && (a.iata || a.icao || "");
+    const nm = (a) => a && (a.shortName || a.municipalityName || a.name || "");
+    return {
+      airline: f.airline && f.airline.name,
+      from: code(dep.airport),
+      fromName: nm(dep.airport),
+      to: code(ar.airport),
+      toName: nm(ar.airport),
+      dep: parse(dep.scheduledTime),
+      arr: parse(ar.scheduledTime),
+    };
+  } catch (e) {
+    return { error: "network" };
+  }
+}
+
 /** Debounce helper for live lookups while typing. */
 function debounce(fn, ms) {
   let t;

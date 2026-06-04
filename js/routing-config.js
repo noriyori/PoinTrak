@@ -28,3 +28,22 @@ window.ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImFiMj
    Where a region has no transit feed yet, the Transit mode falls back
    to a straight-line time estimate. Nothing to configure here.
    ============================================================ */
+
+/* ============================================================
+   AeroDataBox (optional) — look up a flight by its number to
+   auto-fill the airports and times in a ✈️ Flight item.
+
+   --- Setup (free tier) ---
+   1. Create a free RapidAPI account: https://rapidapi.com/auth/sign-up
+   2. Open the AeroDataBox API:
+      https://rapidapi.com/aedbx-aedbx/api/aerodatabox
+   3. Click "Subscribe to Test" and pick the free "Basic" plan
+      (a few hundred calls/month — plenty for entering a trip).
+   4. On the API's Endpoints page, copy your "X-RapidAPI-Key"
+      (Application Key) and paste it below, then commit & push.
+
+   Note: the key is visible in the published site (like the others) and
+   RapidAPI may rate-limit. If lookups fail with a network/CORS error in
+   the browser, tell me and I'll add a tiny proxy.
+   ============================================================ */
+window.AERODATABOX_RAPIDAPI_KEY = "PASTE_RAPIDAPI_KEY";

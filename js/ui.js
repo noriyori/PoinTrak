@@ -425,16 +425,21 @@ function itemEditor(existing, defaults) {
   }
   function renderSegs() {
     const c = document.getElementById("flight-segs");
+    const canLookup = flightLookupEnabled();
     c.innerHTML = segs
       .map(
         (s, i) => `<div class="flight-seg">
           <input class="seg-no" placeholder="Flight #" value="${escapeHtml(s.no)}" />
           <input class="seg-from" placeholder="From" value="${escapeHtml(s.from)}" />
           <input class="seg-to" placeholder="To" value="${escapeHtml(s.to)}" />
+          ${canLookup ? `<button type="button" class="seg-fetch" data-i="${i}" title="Look up airports & times by flight number">Fetch</button>` : ""}
           <button type="button" class="seg-del" data-i="${i}" title="Remove">×</button>
         </div>`
       )
       .join("");
+    c.querySelectorAll(".seg-fetch").forEach((b) =>
+      b.addEventListener("click", () => fetchSeg(Number(b.dataset.i), b))
+    );
     c.querySelectorAll(".seg-del").forEach((b) =>
       b.addEventListener("click", () => {
         readSegs();
@@ -450,6 +455,44 @@ function itemEditor(existing, defaults) {
     segs.push({ no: "", from: "", to: "" });
     renderSegs();
   });
+
+  // Look up a segment's flight number and fill airports/times.
+  async function fetchSeg(i, btn) {
+    readSegs();
+    const no = segs[i] && segs[i].no;
+    if (!no) { toast("Enter a flight number in that row first"); return; }
+    const date = document.getElementById("f-date").value;
+    btn.textContent = "…";
+    btn.disabled = true;
+    const r = await lookupFlight(no, date);
+    btn.textContent = "Fetch";
+    btn.disabled = false;
+    if (r.error) {
+      const msgs = {
+        "no-key": "Add an AeroDataBox key to enable lookup",
+        "not-found": "No flight found for that number/date",
+        network: "Lookup failed (network/CORS)",
+      };
+      toast(msgs[r.error] || "Lookup failed (" + r.error + ")");
+      return;
+    }
+    if (r.from) segs[i].from = r.from;
+    if (r.to) segs[i].to = r.to;
+    renderSegs();
+    // First segment seeds the departure; last segment seeds the arrival.
+    if (i === 0 && r.dep) {
+      if (r.dep.date && !document.getElementById("f-date").value) document.getElementById("f-date").value = r.dep.date;
+      if (r.dep.time) document.getElementById("f-depart").value = r.dep.time;
+    }
+    if (i === segs.length - 1 && r.arr) {
+      if (r.arr.time) document.getElementById("f-time").value = r.arr.time;
+      const depDate = (r.dep && r.dep.date) || document.getElementById("f-date").value;
+      if (r.arr.date && depDate && r.arr.date !== depDate) {
+        document.getElementById("f-arrdate").value = r.arr.date;
+      }
+    }
+    toast(`✈️ ${r.from || "?"} → ${r.to || "?"}${r.airline ? " · " + r.airline : ""}`);
+  }
 
   // live geocoding
   const locInput = document.getElementById("f-loc");
