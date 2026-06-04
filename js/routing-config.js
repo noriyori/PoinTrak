@@ -46,4 +46,4 @@ window.ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImFiMj
    RapidAPI may rate-limit. If lookups fail with a network/CORS error in
    the browser, tell me and I'll add a tiny proxy.
    ============================================================ */
-window.AERODATABOX_RAPIDAPI_KEY = "PASTE_RAPIDAPI_KEY";
+window.AERODATABOX_RAPIDAPI_KEY = "8d0d148958msh522b414f7fbe496p1c540ajsn654adfc9d311";
