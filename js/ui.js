@@ -325,6 +325,18 @@ function itemEditor(existing, defaults) {
         <label>Title</label>
         <input id="f-title" required placeholder="e.g. Pick up rental car" value="${escapeHtml(it.title || "")}" />
       </div>
+      <div class="form-row">
+        <label>How you'll travel to the next stop</label>
+        <select id="f-mode">${modeOptions(it.legMode || "car")}</select>
+      </div>
+      <div class="form-row" id="flight-row" ${it.legMode === "flight" ? "" : "hidden"}>
+        <label>Flight details</label>
+        <div class="form-grid3">
+          <input id="f-flightno" placeholder="Flight # (e.g. LX 015)" value="${escapeHtml(it.flightNo || "")}" />
+          <input id="f-fromair" placeholder="From (e.g. JFK)" value="${escapeHtml(it.fromAir || "")}" />
+          <input id="f-toair" placeholder="To (e.g. ZRH)" value="${escapeHtml(it.toAir || "")}" />
+        </div>
+      </div>
       <div class="form-grid">
         <div class="form-row">
           <label>Date</label>
@@ -350,14 +362,6 @@ function itemEditor(existing, defaults) {
         <label>Arrival date <span class="lbl-soft">— only if it arrives on a later day (e.g. overnight flight)</span></label>
         <input id="f-arrdate" type="date" value="${it.arriveDate || ""}" />
       </div>
-      <div class="form-row" id="flight-row" ${it.legMode === "flight" ? "" : "hidden"}>
-        <label>Flight details</label>
-        <div class="form-grid3">
-          <input id="f-flightno" placeholder="Flight # (e.g. LX 015)" value="${escapeHtml(it.flightNo || "")}" />
-          <input id="f-fromair" placeholder="From (e.g. JFK)" value="${escapeHtml(it.fromAir || "")}" />
-          <input id="f-toair" placeholder="To (e.g. ZRH)" value="${escapeHtml(it.toAir || "")}" />
-        </div>
-      </div>
       <div class="form-row" id="enddate-row" ${it.type === "hotel" ? "" : "hidden"}>
         <label>Check-out date</label>
         <input id="f-enddate" type="date" value="${it.endDate || ""}" />
@@ -368,10 +372,6 @@ function itemEditor(existing, defaults) {
         <div class="geo-result" id="geo-out">${
           it.location?.lat ? "📍 Pinned on map" : "Type a place to pin it on the route map."
         }</div>
-      </div>
-      <div class="form-row">
-        <label>How you'll travel to the next stop</label>
-        <select id="f-mode">${modeOptions(it.legMode || "car")}</select>
       </div>
       <div class="form-row">
         <label>Notes</label>
