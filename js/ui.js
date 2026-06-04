@@ -125,11 +125,48 @@ function prettyDate(d) {
   return dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
+function shortDate(d) {
+  if (!d) return "";
+  const dt = new Date(d + "T00:00:00");
+  if (isNaN(dt)) return d;
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** Chips describing an item's arrival/departure (with dates), stay + flight. */
+function timeChips(it, opts = {}) {
+  const s = opts.short;
+  const overnight = it.arriveDate && it.arriveDate !== it.date;
+  const dep = departOf(it);
+
+  const arriveChip = it.time
+    ? `<span class="chip">🛬 ${s ? "" : "Arrive "}${overnight ? shortDate(it.arriveDate) + " " : ""}${escapeHtml(it.time)}</span>`
+    : "";
+  const departChip = dep
+    ? `<span class="chip">🛫 ${s ? "" : "Depart "}${overnight && it.date ? shortDate(it.date) + " " : ""}${escapeHtml(dep)}${!s && !it.departTime ? " (auto)" : ""}</span>`
+    : "";
+  const stayChip = it.stay ? `<span class="chip">⏳ ${s ? "" : "Stay "}${escapeHtml(humanDuration(it.stay))}</span>` : "";
+  const flightChip =
+    it.flightNo || it.fromAir || it.toAir
+      ? `<span class="chip">✈️ ${escapeHtml([it.flightNo, [it.fromAir, it.toAir].filter(Boolean).join("→")].filter(Boolean).join(" · "))}</span>`
+      : "";
+
+  // Flights/overnight travel read depart→arrive; everything else arrive→stay→depart.
+  const order = overnight ? [departChip, arriveChip, flightChip] : [arriveChip, stayChip, departChip, flightChip];
+  return order.filter(Boolean);
+}
+
 /** Timeline items sorted by date then time, undated last. */
+/** Time used to place an item on its date: departure time for overnight
+ *  travel (which departs this date but arrives later), else arrival time. */
+function sortTimeOf(it) {
+  if (it.departTime && it.arriveDate && it.arriveDate !== it.date) return it.departTime;
+  return it.time || it.departTime || "99:99";
+}
+
 function orderedItems() {
   return [...trip.items].sort((a, b) => {
-    const ka = (a.date || "9999") + (a.time || "99:99");
-    const kb = (b.date || "9999") + (b.time || "99:99");
+    const ka = (a.date || "9999") + sortTimeOf(a);
+    const kb = (b.date || "9999") + sortTimeOf(b);
     return ka < kb ? -1 : ka > kb ? 1 : 0;
   });
 }
@@ -309,6 +346,18 @@ function itemEditor(existing, defaults) {
           <div class="geo-result">Leave blank to auto-calculate</div>
         </div>
       </div>
+      <div class="form-row" id="arrdate-row" ${it.type === "hotel" ? "hidden" : ""}>
+        <label>Arrival date <span class="lbl-soft">— only if it arrives on a later day (e.g. overnight flight)</span></label>
+        <input id="f-arrdate" type="date" value="${it.arriveDate || ""}" />
+      </div>
+      <div class="form-row" id="flight-row" ${it.legMode === "flight" ? "" : "hidden"}>
+        <label>Flight details</label>
+        <div class="form-grid3">
+          <input id="f-flightno" placeholder="Flight # (e.g. LX 015)" value="${escapeHtml(it.flightNo || "")}" />
+          <input id="f-fromair" placeholder="From (e.g. JFK)" value="${escapeHtml(it.fromAir || "")}" />
+          <input id="f-toair" placeholder="To (e.g. ZRH)" value="${escapeHtml(it.toAir || "")}" />
+        </div>
+      </div>
       <div class="form-row" id="enddate-row" ${it.type === "hotel" ? "" : "hidden"}>
         <label>Check-out date</label>
         <input id="f-enddate" type="date" value="${it.endDate || ""}" />
@@ -347,7 +396,13 @@ function itemEditor(existing, defaults) {
       chosenType = btn.dataset.type;
       document.getElementById("enddate-row").hidden = chosenType !== "hotel";
       document.getElementById("timing-row").hidden = chosenType === "hotel";
+      document.getElementById("arrdate-row").hidden = chosenType === "hotel";
     });
+  });
+
+  // show flight detail fields only when the mode is Flight
+  document.getElementById("f-mode").addEventListener("change", (e) => {
+    document.getElementById("flight-row").hidden = e.target.value !== "flight";
   });
 
   // live geocoding
@@ -386,7 +441,11 @@ function itemEditor(existing, defaults) {
       time: document.getElementById("f-time").value,
       stay: parseInt(document.getElementById("f-stay").value, 10) || 0,
       departTime: document.getElementById("f-depart").value,
+      arriveDate: document.getElementById("f-arrdate").value,
       legMode: document.getElementById("f-mode").value,
+      flightNo: document.getElementById("f-flightno").value.trim(),
+      fromAir: document.getElementById("f-fromair").value.trim().toUpperCase(),
+      toAir: document.getElementById("f-toair").value.trim().toUpperCase(),
       endDate: document.getElementById("f-enddate").value,
       notes: document.getElementById("f-notes").value.trim(),
       location: resolvedLoc,
@@ -537,13 +596,7 @@ function renderTimeline() {
     const dayItems = groups[key];
     dayItems.forEach((it, idx) => {
       const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
-      const chips = [];
-      if (it.time) chips.push(`<span class="chip">🛬 Arrive ${escapeHtml(it.time)}</span>`);
-      if (it.stay) chips.push(`<span class="chip">⏳ Stay ${escapeHtml(humanDuration(it.stay))}</span>`);
-      {
-        const dep = departOf(it);
-        if (dep) chips.push(`<span class="chip">🛫 Depart ${escapeHtml(dep)}${it.departTime ? "" : " (auto)"}</span>`);
-      }
+      const chips = timeChips(it);
       if (it.type === "hotel" && it.endDate) chips.push(`<span class="chip">🛏 until ${prettyDate(it.endDate)}</span>`);
       if (it.location?.name) {
         const am = appleMapsUrl(it.location);
@@ -921,13 +974,7 @@ function renderOverview() {
   } else {
     dayItems.forEach((it, i) => {
       const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
-      const chips = [];
-      if (it.time) chips.push(`<span class="chip">🛬 ${escapeHtml(it.time)}</span>`);
-      if (it.stay) chips.push(`<span class="chip">⏳ ${escapeHtml(humanDuration(it.stay))}</span>`);
-      {
-        const dep = departOf(it);
-        if (dep) chips.push(`<span class="chip">🛫 ${escapeHtml(dep)}</span>`);
-      }
+      const chips = timeChips(it, { short: true });
       if (it.location?.name) chips.push(`<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`);
       if (it.by) chips.push(`<span class="chip chip-author">${avatar(it.by, false)}</span>`);
       dayBody += `
