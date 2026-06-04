@@ -144,8 +144,14 @@ async function drawLegs(entry, located) {
       [from.location.lat, from.location.lng],
       [to.location.lat, to.location.lng],
     ];
+    const isFlight = mode === "flight";
     const line = coords && coords.length
-      ? L.polyline(coords, { color: m.color, weight: 4, opacity: 0.85 })
+      ? L.polyline(coords, {
+          color: m.color,
+          weight: isFlight ? 2.5 : 4,
+          opacity: 0.85,
+          dashArray: isFlight ? "4 6" : null,
+        })
       : L.polyline(straight, { color: m.color, weight: 3, opacity: 0.7, dashArray: "6 8" });
 
     if (token !== _mapLegToken) return;
