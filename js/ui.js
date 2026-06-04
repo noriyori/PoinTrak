@@ -350,25 +350,25 @@ function itemEditor(existing, defaults) {
           <label>Date</label>
           <input id="f-date" type="date" value="${it.date || ""}" />
         </div>
-        <div class="form-row">
-          <label>Arrival time</label>
-          <input id="f-time" type="time" value="${it.time || ""}" />
-        </div>
-      </div>
-      <div class="form-grid" id="timing-row" ${it.type === "hotel" ? "hidden" : ""}>
-        <div class="form-row">
-          <label>Stay duration</label>
-          <select id="f-stay">${stayOptions(it.stay || 0)}</select>
-        </div>
-        <div class="form-row">
+        <div class="form-row" id="dep-time-cell" ${it.type === "hotel" ? "hidden" : ""}>
           <label>Departure time</label>
           <input id="f-depart" type="time" value="${it.departTime || ""}" />
           <div class="geo-result">Leave blank to auto-calculate</div>
         </div>
       </div>
-      <div class="form-row" id="arrdate-row" ${it.type === "hotel" ? "hidden" : ""}>
-        <label>Arrival date <span class="lbl-soft">— only if it arrives on a later day (e.g. overnight flight)</span></label>
-        <input id="f-arrdate" type="date" value="${it.arriveDate || ""}" />
+      <div class="form-grid">
+        <div class="form-row" id="arr-date-cell" ${it.type === "hotel" ? "hidden" : ""}>
+          <label>Arrival date <span class="lbl-soft">— if a later day</span></label>
+          <input id="f-arrdate" type="date" value="${it.arriveDate || ""}" />
+        </div>
+        <div class="form-row">
+          <label>Arrival time</label>
+          <input id="f-time" type="time" value="${it.time || ""}" />
+        </div>
+      </div>
+      <div class="form-row" id="stay-row" ${it.type === "hotel" ? "hidden" : ""}>
+        <label>Stay duration</label>
+        <select id="f-stay">${stayOptions(it.stay || 0)}</select>
       </div>
       <div class="form-row" id="enddate-row" ${it.type === "hotel" ? "" : "hidden"}>
         <label>Check-out date</label>
@@ -402,9 +402,11 @@ function itemEditor(existing, defaults) {
       document.querySelectorAll(".type-opt").forEach((b) => b.classList.remove("sel"));
       btn.classList.add("sel");
       chosenType = btn.dataset.type;
-      document.getElementById("enddate-row").hidden = chosenType !== "hotel";
-      document.getElementById("timing-row").hidden = chosenType === "hotel";
-      document.getElementById("arrdate-row").hidden = chosenType === "hotel";
+      const hotel = chosenType === "hotel";
+      document.getElementById("enddate-row").hidden = !hotel;
+      document.getElementById("stay-row").hidden = hotel;
+      document.getElementById("dep-time-cell").hidden = hotel;
+      document.getElementById("arr-date-cell").hidden = hotel;
     });
   });
 
