@@ -431,7 +431,7 @@ function itemEditor(existing, defaults) {
   }, 600);
   locInput.addEventListener("input", doGeo);
 
-  document.getElementById("item-form").addEventListener("submit", (e) => {
+  document.getElementById("item-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const data = {
       id: it.id || uid(),
@@ -453,6 +453,17 @@ function itemEditor(existing, defaults) {
       by: it.by || getMe(),
     };
     if (!data.title) return;
+
+    // For flights, geocode the airport codes so we can draw the real arc.
+    if (data.legMode === "flight") {
+      data.fromLoc = await geocodeAirport(data.fromAir);
+      data.toLoc = await geocodeAirport(data.toAir);
+      // If no explicit location was set, pin the item at the destination airport.
+      if (!data.location && data.toLoc) {
+        data.location = { name: data.toAir, lat: data.toLoc.lat, lng: data.toLoc.lng, label: data.toLoc.label };
+      }
+    }
+
     upsertItem(data);
     closeModal();
   });
