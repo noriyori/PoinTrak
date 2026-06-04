@@ -9,6 +9,13 @@ const ITEM_TYPES = {
   task:   { icon: "✔️", label: "Task / errand" },
 };
 
+/** Departure time for an item: manual departTime if set, else arrival + stay. */
+function departOf(it) {
+  if (it.departTime) return it.departTime;
+  if (it.time && it.stay) return shiftTime(it.time, it.stay).time;
+  return null;
+}
+
 /** Icon for an item — travel items show their transport mode's icon. */
 function itemIcon(it) {
   if (it.type === "travel") {
@@ -291,9 +298,16 @@ function itemEditor(existing, defaults) {
           <input id="f-time" type="time" value="${it.time || ""}" />
         </div>
       </div>
-      <div class="form-row" id="stay-row" ${it.type === "hotel" ? "hidden" : ""}>
-        <label>Stay duration (how long you'll spend here)</label>
-        <select id="f-stay">${stayOptions(it.stay || 0)}</select>
+      <div class="form-grid" id="timing-row" ${it.type === "hotel" ? "hidden" : ""}>
+        <div class="form-row">
+          <label>Stay duration</label>
+          <select id="f-stay">${stayOptions(it.stay || 0)}</select>
+        </div>
+        <div class="form-row">
+          <label>Departure time</label>
+          <input id="f-depart" type="time" value="${it.departTime || ""}" />
+          <div class="geo-result">Leave blank to auto-calculate</div>
+        </div>
       </div>
       <div class="form-row" id="enddate-row" ${it.type === "hotel" ? "" : "hidden"}>
         <label>Check-out date</label>
@@ -332,7 +346,7 @@ function itemEditor(existing, defaults) {
       btn.classList.add("sel");
       chosenType = btn.dataset.type;
       document.getElementById("enddate-row").hidden = chosenType !== "hotel";
-      document.getElementById("stay-row").hidden = chosenType === "hotel";
+      document.getElementById("timing-row").hidden = chosenType === "hotel";
     });
   });
 
@@ -371,6 +385,7 @@ function itemEditor(existing, defaults) {
       date: document.getElementById("f-date").value,
       time: document.getElementById("f-time").value,
       stay: parseInt(document.getElementById("f-stay").value, 10) || 0,
+      departTime: document.getElementById("f-depart").value,
       legMode: document.getElementById("f-mode").value,
       endDate: document.getElementById("f-enddate").value,
       notes: document.getElementById("f-notes").value.trim(),
@@ -464,6 +479,37 @@ function suggestionEditor() {
   });
 }
 
+/**
+ * Touch-friendly way to schedule a suggestion: pick a day (or no date)
+ * and it's accepted onto the plan. Mirrors the desktop drag-and-drop.
+ */
+function suggestionDayPicker(id) {
+  const s = trip.suggestions.find((x) => x.id === id);
+  if (!s) return;
+  const days = overviewDayList();
+  const buttons =
+    `<button class="day-pick" data-date="">📌 Add with no date</button>` +
+    days
+      .map(
+        (d, i) =>
+          `<button class="day-pick" data-date="${d}">Day ${i + 1} · ${escapeHtml(prettyDate(d))}</button>`
+      )
+      .join("");
+  openModal(`
+    <h2>Add to a day</h2>
+    <p class="empty-hint">Schedule “${escapeHtml(s.title)}” — pick a day (you can change the time afterwards).</p>
+    <div class="day-pick-list">${buttons}</div>
+  `);
+  document.querySelectorAll(".day-pick").forEach((b) =>
+    b.addEventListener("click", () => {
+      const date = b.dataset.date;
+      if (date) _overviewDay = date;
+      acceptSuggestion(id, date);
+      closeModal();
+    })
+  );
+}
+
 /* ============================================================
    Renderers
    ============================================================ */
@@ -494,7 +540,10 @@ function renderTimeline() {
       const chips = [];
       if (it.time) chips.push(`<span class="chip">🛬 Arrive ${escapeHtml(it.time)}</span>`);
       if (it.stay) chips.push(`<span class="chip">⏳ Stay ${escapeHtml(humanDuration(it.stay))}</span>`);
-      if (it.time && it.stay) chips.push(`<span class="chip">🛫 Depart ${escapeHtml(shiftTime(it.time, it.stay).time)}</span>`);
+      {
+        const dep = departOf(it);
+        if (dep) chips.push(`<span class="chip">🛫 Depart ${escapeHtml(dep)}${it.departTime ? "" : " (auto)"}</span>`);
+      }
       if (it.type === "hotel" && it.endDate) chips.push(`<span class="chip">🛏 until ${prettyDate(it.endDate)}</span>`);
       if (it.location?.name) {
         const am = appleMapsUrl(it.location);
@@ -606,9 +655,10 @@ function buildLegPill(cur, next, minutes, km, estimated, m, legs) {
 
   let timing = "";
   let warn = false;
-  if (cur.time && cur.stay) {
-    // Departure is driven by how long you stay.
-    const leaveMin = toMin(cur.time) + cur.stay;
+  // A manual departure time wins; otherwise departure = arrival + stay.
+  const depart = cur.departTime || (cur.time && cur.stay ? fromMin(toMin(cur.time) + cur.stay) : null);
+  if (depart) {
+    const leaveMin = toMin(depart);
     const arriveMin = leaveMin + minutes;
     timing = ` · leave <strong>${fromMin(leaveMin)}</strong> → arrive <strong>${fromMin(arriveMin)}</strong>`;
     if (next.time && arriveMin > toMin(next.time)) {
@@ -689,14 +739,14 @@ function renderSuggestions() {
           <button class="mini cmt-btn">💬 ${(s.comments || []).length || ""}</button>
           <span class="spacer"></span>
           ${s.accepted ? '<span class="by">✓ on timeline</span>'
-            : '<button class="mini accept">Add to timeline</button><button class="mini del">Remove</button>'}
+            : '<button class="mini accept">＋ Add to day</button><button class="mini del">Remove</button>'}
         </div>
       </div>
     `);
     card.querySelector(".vote").addEventListener("click", () => voteSuggestion(s.id));
     card.querySelector(".cmt-btn").addEventListener("click", () => commentsModal("suggestions", s.id));
     if (!s.accepted) {
-      card.querySelector(".accept").addEventListener("click", () => acceptSuggestion(s.id));
+      card.querySelector(".accept").addEventListener("click", () => suggestionDayPicker(s.id));
       card.querySelector(".del").addEventListener("click", () => removeSuggestion(s.id));
     }
     wrap.appendChild(card);
@@ -874,7 +924,10 @@ function renderOverview() {
       const chips = [];
       if (it.time) chips.push(`<span class="chip">🛬 ${escapeHtml(it.time)}</span>`);
       if (it.stay) chips.push(`<span class="chip">⏳ ${escapeHtml(humanDuration(it.stay))}</span>`);
-      if (it.time && it.stay) chips.push(`<span class="chip">🛫 ${escapeHtml(shiftTime(it.time, it.stay).time)}</span>`);
+      {
+        const dep = departOf(it);
+        if (dep) chips.push(`<span class="chip">🛫 ${escapeHtml(dep)}</span>`);
+      }
       if (it.location?.name) chips.push(`<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`);
       if (it.by) chips.push(`<span class="chip chip-author">${avatar(it.by, false)}</span>`);
       dayBody += `
@@ -912,13 +965,14 @@ function renderOverview() {
         topSugg.length
           ? `<ul class="ov-list">${topSugg
               .map(
-                (s) => `<li class="ov-li ov-sugg" draggable="true" data-sugg="${s.id}" title="Drag onto a day to add it to the plan">
+                (s) => `<li class="ov-li ov-sugg" draggable="true" data-sugg="${s.id}" title="Drag onto a day — or tap ＋ to pick a day">
                   <span class="ov-grip">⠿</span>
                   <span class="ov-vote">👍 ${s.votes || 0}</span>
                   <span class="ov-li-main">
                     <span class="ov-li-title">${escapeHtml(s.title)}</span>
                     <span class="ov-li-sub">by ${escapeHtml(s.by || "someone")}${s.location?.name ? " · 📍 " + escapeHtml(s.location.name) : ""}</span>
                   </span>
+                  <button class="ov-sugg-add" data-sugg-add="${s.id}" title="Add to a day">＋</button>
                 </li>`
               )
               .join("")}</ul>
@@ -974,6 +1028,12 @@ function renderOverview() {
       if (b.dataset.add === "item") itemEditor(null, addDefaults());
       else if (b.dataset.add === "suggestion") suggestionEditor();
       else if (b.dataset.add === "check") checklistEditor();
+    })
+  );
+  wrap.querySelectorAll(".ov-sugg-add").forEach((b) =>
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      suggestionDayPicker(b.dataset.suggAdd);
     })
   );
   wrap.querySelectorAll(".day-chip").forEach((b) =>

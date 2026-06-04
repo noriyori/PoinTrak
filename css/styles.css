@@ -305,6 +305,34 @@ button.link {
 }
 .day-chip.drag-over { border-color: var(--accent); background: var(--panel-2); box-shadow: 0 0 0 2px var(--accent) inset; }
 
+.ov-sugg-add {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+  font-weight: 700;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+.ov-sugg-add:hover { filter: brightness(1.08); }
+
+/* Day picker modal */
+.day-pick-list { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; }
+.day-pick {
+  text-align: left;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.day-pick:hover { border-color: var(--accent); background: var(--panel-2); }
+
 .ov-hero { grid-column: 1 / -1; }
 .ov-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .ov-hero-title { font-size: 24px; font-weight: 800; }
