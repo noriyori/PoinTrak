@@ -687,8 +687,57 @@ function suggestionDayPicker(id) {
 function renderTimeline() {
   const wrap = document.getElementById("timeline");
   const empty = document.getElementById("timeline-empty");
-  const items = orderedItems();
+  const allItems = orderedItems();
   wrap.innerHTML = "";
+
+  // ----- view toggle: all days vs one day -----
+  const dayList = overviewDayList();
+  const hasUnscheduled = allItems.some((it) => !it.date);
+  if (_timelineMode === "day") {
+    const valid = _timelineDay === "unscheduled" ? hasUnscheduled : dayList.includes(_timelineDay);
+    if (!valid) {
+      const today = new Date().toISOString().slice(0, 10);
+      _timelineDay = dayList.includes(today) ? today : dayList[0] || (hasUnscheduled ? "unscheduled" : null);
+    }
+  }
+  const items =
+    _timelineMode === "day"
+      ? allItems.filter((it) => (_timelineDay === "unscheduled" ? !it.date : it.date === _timelineDay))
+      : allItems;
+
+  const idx = dayList.indexOf(_timelineDay);
+  const controls = el(`
+    <div class="tl-controls">
+      <div class="seg-toggle">
+        <button class="seg ${_timelineMode === "all" ? "active" : ""}" data-tlmode="all">All days</button>
+        <button class="seg ${_timelineMode === "day" ? "active" : ""}" data-tlmode="day">Day by day</button>
+      </div>
+      ${
+        _timelineMode === "day" && _timelineDay
+          ? `<div class="dv-nav">
+               <button class="dv-arrow" data-tlstep="-1" ${idx <= 0 ? "disabled" : ""}>◀</button>
+               <span class="tl-day-label">${escapeHtml(dayLabel(_timelineDay, dayList))}</span>
+               <button class="dv-arrow" data-tlstep="1" ${idx < 0 || idx >= dayList.length - 1 ? "disabled" : ""}>▶</button>
+             </div>`
+          : ""
+      }
+    </div>
+  `);
+  controls.querySelectorAll("[data-tlmode]").forEach((b) =>
+    b.addEventListener("click", () => {
+      _timelineMode = b.dataset.tlmode;
+      renderTimeline();
+    })
+  );
+  controls.querySelectorAll("[data-tlstep]").forEach((b) =>
+    b.addEventListener("click", () => {
+      if (b.hasAttribute("disabled")) return;
+      const t = dayList.indexOf(_timelineDay) + Number(b.dataset.tlstep);
+      if (t >= 0 && t < dayList.length) { _timelineDay = dayList[t]; renderTimeline(); }
+    })
+  );
+  wrap.appendChild(controls);
+
   empty.hidden = items.length > 0;
 
   // group by date
@@ -981,6 +1030,8 @@ function renderAll() {
    Overview — the "home" dashboard tying everything together
    ============================================================ */
 let _overviewDay = null; // selected day: a date string, "all", or "unscheduled"
+let _timelineMode = "all"; // Timeline tab view: "all" or "day"
+let _timelineDay = null; // selected day when in day-by-day mode
 
 /** Distinct, sorted day list combining the trip's date range and item dates. */
 function overviewDayList() {
