@@ -56,10 +56,11 @@ function debounce(fn, ms) {
    Results are cached so the timeline & map don't re-query.
    ============================================================ */
 const TRAVEL_MODES = {
-  car:   { label: "Car",     icon: "🚗", color: "#2563eb", speed: null, routed: true },
-  train: { label: "Transit", icon: "🚆", color: "#7c3aed", speed: 60,   routed: false },
-  bike:  { label: "Bike",    icon: "🚲", color: "#059669", speed: 15,   routed: true },
-  walk:  { label: "Walk",    icon: "🚶", color: "#d97706", speed: 5,    routed: true },
+  car:    { label: "Car",     icon: "🚗", color: "#2563eb", speed: null, routed: true },
+  train:  { label: "Transit", icon: "🚆", color: "#7c3aed", speed: 60,   routed: false },
+  flight: { label: "Flight",  icon: "✈️", color: "#e11d48", speed: 800,  routed: false },
+  bike:   { label: "Bike",    icon: "🚲", color: "#059669", speed: 15,   routed: true },
+  walk:   { label: "Walk",    icon: "🚶", color: "#d97706", speed: 5,    routed: true },
 };
 
 const routeCache = {};
@@ -256,8 +257,38 @@ async function transitousRoute(from, to) {
  * - transit (train): Transitous (keyless), else a straight-line estimate.
  * Returns { minutes, km, coords, estimated, mode, legs? }.
  */
+/** Points along the great-circle arc between two coords (for flight paths). */
+function greatCircle(a, b, n = 64) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const toDeg = (r) => (r * 180) / Math.PI;
+  const lat1 = toRad(a.lat), lon1 = toRad(a.lng), lat2 = toRad(b.lat), lon2 = toRad(b.lng);
+  const hav =
+    Math.sin((lat2 - lat1) / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2;
+  const d = 2 * Math.asin(Math.min(1, Math.sqrt(hav)));
+  if (!d) return [[a.lat, a.lng], [b.lat, b.lng]];
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const f = i / n;
+    const A = Math.sin((1 - f) * d) / Math.sin(d);
+    const B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(lat1) * Math.cos(lon1) + B * Math.cos(lat2) * Math.cos(lon2);
+    const y = A * Math.cos(lat1) * Math.sin(lon1) + B * Math.cos(lat2) * Math.sin(lon2);
+    const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+    pts.push([toDeg(Math.atan2(z, Math.hypot(x, y))), toDeg(Math.atan2(y, x))]);
+  }
+  return pts;
+}
+
 async function travelByMode(from, to, mode) {
   const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
+
+  if (mode === "flight") {
+    const km = haversineKm(from, to);
+    // Cruise time + ~45 min for taxi/boarding/descent overhead.
+    const minutes = Math.round((km / m.speed) * 60) + 45;
+    return { minutes, km, coords: greatCircle(from, to), estimated: true, mode };
+  }
 
   if (mode === "train") {
     const tr = await transitousRoute(from, to);
