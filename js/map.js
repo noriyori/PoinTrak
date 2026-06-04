@@ -78,7 +78,7 @@ function refreshMapInto(id, opts = {}) {
     latlngs.push(ll);
     const marker = L.marker(ll, { icon: numberedIcon(i + 1, it.type) });
     if (entry.interactive) {
-      const icon = ITEM_TYPES[it.type]?.icon || "📍";
+      const icon = itemIcon(it);
       const when = formatWhen(it);
       const am = appleMapsUrl(it.location);
       marker.bindPopup(
@@ -115,12 +115,11 @@ async function drawLegs(entry, located) {
     const mode = from.legMode || "car";
     const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
 
-    let coords = null;
-    if (m.routed) {
-      const leg = await travelByMode(from.location, to.location, mode);
-      if (token !== _mapLegToken) return; // a newer render superseded us
-      coords = leg.coords;
-    }
+    // Fetch the route geometry for this mode (real roads/paths, or transit
+    // shape when available); coords stays null -> we draw a straight line.
+    const leg = await travelByMode(from.location, to.location, mode);
+    if (token !== _mapLegToken) return; // a newer render superseded us
+    const coords = leg.coords;
 
     const straight = [
       [from.location.lat, from.location.lng],

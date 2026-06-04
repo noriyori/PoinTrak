@@ -56,10 +56,10 @@ function debounce(fn, ms) {
    Results are cached so the timeline & map don't re-query.
    ============================================================ */
 const TRAVEL_MODES = {
-  car:   { label: "Car",   icon: "🚗", color: "#2563eb", speed: null, routed: true },
-  train: { label: "Train", icon: "🚆", color: "#7c3aed", speed: 80,   routed: false },
-  bike:  { label: "Bike",  icon: "🚲", color: "#059669", speed: 15,   routed: true },
-  walk:  { label: "Walk",  icon: "🚶", color: "#d97706", speed: 5,    routed: true },
+  car:   { label: "Car",     icon: "🚗", color: "#2563eb", speed: null, routed: true },
+  train: { label: "Transit", icon: "🚆", color: "#7c3aed", speed: 60,   routed: false },
+  bike:  { label: "Bike",    icon: "🚲", color: "#059669", speed: 15,   routed: true },
+  walk:  { label: "Walk",    icon: "🚶", color: "#d97706", speed: 5,    routed: true },
 };
 
 const routeCache = {};
@@ -168,17 +168,82 @@ async function orsRoute(from, to, mode) {
   return null;
 }
 
+/* ---------- Navitia (optional, real public-transit routing) ---------- */
+function navitiaEnabled() {
+  const k = window.NAVITIA_API_KEY;
+  return !!(k && !k.startsWith("PASTE"));
+}
+
+function pathKm(coords) {
+  let km = 0;
+  for (let i = 1; i < coords.length; i++) {
+    km += haversineKm(
+      { lat: coords[i - 1][0], lng: coords[i - 1][1] },
+      { lat: coords[i][0], lng: coords[i][1] }
+    );
+  }
+  return km;
+}
+
+/**
+ * Public-transit journey from Navitia (trains, metro, bus, tram + walking
+ * transfers). Returns the same shape as routeLeg, or null if unavailable
+ * or out of coverage. `legs` lists the transit modes used, e.g. ["Metro","Bus"].
+ */
+async function navitiaRoute(from, to) {
+  if (!navitiaEnabled()) return null;
+  const key = `nav:${from.lat.toFixed(4)},${from.lng.toFixed(4)}->${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+  if (routeCache[key]) return routeCache[key];
+
+  try {
+    const url =
+      `https://api.navitia.io/v1/journeys?from=${from.lng};${from.lat}` +
+      `&to=${to.lng};${to.lat}&`;
+    const res = await fetch(url, {
+      headers: { Authorization: "Basic " + btoa(window.NAVITIA_API_KEY + ":") },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const j = data.journeys && data.journeys[0];
+      if (j) {
+        let coords = [];
+        const legs = [];
+        for (const s of j.sections || []) {
+          if (s.geojson && s.geojson.coordinates) {
+            coords = coords.concat(s.geojson.coordinates.map((c) => [c[1], c[0]]));
+          }
+          const cm = s.display_informations && s.display_informations.commercial_mode;
+          if (cm) legs.push(cm);
+        }
+        const result = {
+          minutes: Math.round(j.duration / 60),
+          km: coords.length ? pathKm(coords) : haversineKm(from, to),
+          coords: coords.length ? coords : null,
+          estimated: false,
+          legs,
+        };
+        routeCache[key] = result;
+        return result;
+      }
+    }
+  } catch (e) {
+    /* fall through */
+  }
+  return null;
+}
+
 /**
  * Mode-aware travel estimate between two located points.
- * Prefers OpenRouteService for true car/bike/walk routing; otherwise
- * falls back to OSRM driving geometry with a speed-based time for
- * bike/walk. Train is always a straight-line estimate.
- * Returns { minutes, km, coords, estimated, mode }.
+ * - car/bike/walk: OpenRouteService if configured, else OSRM driving geometry.
+ * - transit (train): Navitia if configured, else a straight-line estimate.
+ * Returns { minutes, km, coords, estimated, mode, legs? }.
  */
 async function travelByMode(from, to, mode) {
   const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
-  if (!m.routed) {
-    // Train (or other non-routed): straight line + speed estimate.
+
+  if (mode === "train") {
+    const nav = await navitiaRoute(from, to);
+    if (nav) return { ...nav, mode };
     const km = haversineKm(from, to);
     return { minutes: Math.round((km / m.speed) * 60), km, coords: null, estimated: true, mode };
   }

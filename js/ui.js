@@ -9,6 +9,15 @@ const ITEM_TYPES = {
   task:   { icon: "✔️", label: "Task / errand" },
 };
 
+/** Icon for an item — travel items show their transport mode's icon. */
+function itemIcon(it) {
+  if (it.type === "travel") {
+    const m = TRAVEL_MODES[it.legMode || "car"];
+    if (m) return m.icon;
+  }
+  return (ITEM_TYPES[it.type] || ITEM_TYPES.event).icon;
+}
+
 /* ---------- People ---------- */
 // The trip crew. Each gets a fixed colour so authorship is obvious at a glance.
 const USERS = ["Peter", "Niszki", "JS"];
@@ -207,7 +216,7 @@ function commentsModal(collection, id) {
   _openComments = { collection, id };
   const me = getMe();
   const icon =
-    collection === "items" ? ITEM_TYPES[entity.type]?.icon || "🎟️" : "💡";
+    collection === "items" ? itemIcon(entity) : "💡";
 
   openModal(`
     <h2>${icon} ${escapeHtml(entity.title)}</h2>
@@ -474,7 +483,7 @@ function renderTimeline() {
 
       const card = el(`
         <div class="tl-item ${it.done ? "tl-done" : ""}" data-type="${it.type}">
-          <div class="tl-icon">${meta.icon}</div>
+          <div class="tl-icon">${itemIcon(it)}</div>
           <div class="tl-main">
             <p class="tl-title">${escapeHtml(it.title)}</p>
             <div class="tl-meta">${chips.join("")}</div>
@@ -565,9 +574,10 @@ const fromMin = (v) => {
 };
 
 /** Build the inner HTML for a travel-leg pill from computed figures. */
-function buildLegPill(cur, next, minutes, km, estimated, m) {
+function buildLegPill(cur, next, minutes, km, estimated, m, legs) {
   const drive = humanDuration(minutes) + (estimated ? " (est.)" : "");
   const dist = km >= 1 ? ` · ${km.toFixed(km < 10 ? 1 : 0)} km` : "";
+  const via = legs && legs.length ? ` · via ${escapeHtml([...new Set(legs)].join(", "))}` : "";
 
   let timing = "";
   let warn = false;
@@ -592,7 +602,7 @@ function buildLegPill(cur, next, minutes, km, estimated, m) {
 
   return (
     `<span class="leg-pill ${warn ? "leg-warn" : "leg-ok"}">` +
-    `${m.icon} ~${drive}${dist} to ${escapeHtml(next.title)}${timing}</span>`
+    `${m.icon} ~${drive}${dist}${via} to ${escapeHtml(next.title)}${timing}</span>`
   );
 }
 
@@ -616,10 +626,10 @@ async function annotateLegSlots(channel, root, items) {
     const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
     node.innerHTML = `<span class="leg-pill leg-calc">${m.icon} estimating ${m.label.toLowerCase()}…</span>`;
 
-    const { minutes, km, estimated } = await travelByMode(cur.location, next.location, mode);
+    const { minutes, km, estimated, legs } = await travelByMode(cur.location, next.location, mode);
     if (token !== _legTokens[channel]) return; // superseded by a newer render
     if (!node.isConnected) continue; // node replaced during the await
-    node.innerHTML = buildLegPill(cur, next, minutes, km, estimated, m);
+    node.innerHTML = buildLegPill(cur, next, minutes, km, estimated, m, legs);
   }
 }
 
@@ -844,7 +854,7 @@ function renderOverview() {
       if (it.by) chips.push(`<span class="chip chip-author">${avatar(it.by, false)}</span>`);
       dayBody += `
         <div class="dv-item ${it.done ? "dv-done" : ""}" data-type="${it.type}" data-edit="${it.id}">
-          <span class="dv-ico">${meta.icon}</span>
+          <span class="dv-ico">${itemIcon(it)}</span>
           <div class="dv-main">
             <div class="dv-title">${escapeHtml(it.title)}</div>
             <div class="dv-meta">${chips.join("")}</div>
