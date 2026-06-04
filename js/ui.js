@@ -16,6 +16,15 @@ function departOf(it) {
   return null;
 }
 
+/** Flight segments for an item (supports connections); migrates legacy single-flight fields. */
+function flightSegments(it) {
+  if (Array.isArray(it.flights) && it.flights.length) return it.flights;
+  if (it.flightNo || it.fromAir || it.toAir) {
+    return [{ no: it.flightNo || "", from: it.fromAir || "", to: it.toAir || "", fromLoc: it.fromLoc, toLoc: it.toLoc }];
+  }
+  return [];
+}
+
 /** Icon for an item — travel items show their transport mode's icon. */
 function itemIcon(it) {
   if (it.type === "travel") {
@@ -145,10 +154,12 @@ function timeChips(it, opts = {}) {
     ? `<span class="chip">🛫 ${s ? "" : "Depart "}${overnight && it.date ? shortDate(it.date) + " " : ""}${escapeHtml(dep)}${!s && !it.departTime ? " (auto)" : ""}</span>`
     : "";
   const stayChip = it.stay ? `<span class="chip">⏳ ${s ? "" : "Stay "}${escapeHtml(humanDuration(it.stay))}</span>` : "";
-  const flightChip =
-    it.flightNo || it.fromAir || it.toAir
-      ? `<span class="chip">✈️ ${escapeHtml([it.flightNo, [it.fromAir, it.toAir].filter(Boolean).join("→")].filter(Boolean).join(" · "))}</span>`
-      : "";
+  const segs = it.legMode === "flight" ? flightSegments(it) : [];
+  const flightChip = segs.length
+    ? `<span class="chip">✈️ ${escapeHtml(
+        segs.map((g) => [g.no, [g.from, g.to].filter(Boolean).join("→")].filter(Boolean).join(" ")).join(", ")
+      )}</span>`
+    : "";
 
   // Flights/overnight travel read depart→arrive; everything else arrive→stay→depart.
   const order = overnight ? [departChip, arriveChip, flightChip] : [arriveChip, stayChip, departChip, flightChip];
@@ -330,12 +341,9 @@ function itemEditor(existing, defaults) {
         <select id="f-mode">${modeOptions(it.legMode || "car")}</select>
       </div>
       <div class="form-row" id="flight-row" ${it.legMode === "flight" ? "" : "hidden"}>
-        <label>Flight details</label>
-        <div class="form-grid3">
-          <input id="f-flightno" placeholder="Flight # (e.g. LX 015)" value="${escapeHtml(it.flightNo || "")}" />
-          <input id="f-fromair" placeholder="From (e.g. JFK)" value="${escapeHtml(it.fromAir || "")}" />
-          <input id="f-toair" placeholder="To (e.g. ZRH)" value="${escapeHtml(it.toAir || "")}" />
-        </div>
+        <label>Flights <span class="lbl-soft">— add a row per flight (e.g. connections)</span></label>
+        <div id="flight-segs"></div>
+        <button type="button" id="add-seg" class="ghost" style="margin-top:6px">+ Add another flight</button>
       </div>
       <div class="form-grid">
         <div class="form-row">
@@ -405,6 +413,44 @@ function itemEditor(existing, defaults) {
     document.getElementById("flight-row").hidden = e.target.value !== "flight";
   });
 
+  // flight segments (supports connections: one row per flight)
+  let segs = flightSegments(it).map((s) => ({ no: s.no || "", from: s.from || "", to: s.to || "" }));
+  if (!segs.length) segs = [{ no: "", from: "", to: "" }];
+  function readSegs() {
+    segs = [...document.querySelectorAll("#flight-segs .flight-seg")].map((r) => ({
+      no: r.querySelector(".seg-no").value.trim(),
+      from: r.querySelector(".seg-from").value.trim().toUpperCase(),
+      to: r.querySelector(".seg-to").value.trim().toUpperCase(),
+    }));
+  }
+  function renderSegs() {
+    const c = document.getElementById("flight-segs");
+    c.innerHTML = segs
+      .map(
+        (s, i) => `<div class="flight-seg">
+          <input class="seg-no" placeholder="Flight #" value="${escapeHtml(s.no)}" />
+          <input class="seg-from" placeholder="From" value="${escapeHtml(s.from)}" />
+          <input class="seg-to" placeholder="To" value="${escapeHtml(s.to)}" />
+          <button type="button" class="seg-del" data-i="${i}" title="Remove">×</button>
+        </div>`
+      )
+      .join("");
+    c.querySelectorAll(".seg-del").forEach((b) =>
+      b.addEventListener("click", () => {
+        readSegs();
+        segs.splice(Number(b.dataset.i), 1);
+        if (!segs.length) segs = [{ no: "", from: "", to: "" }];
+        renderSegs();
+      })
+    );
+  }
+  renderSegs();
+  document.getElementById("add-seg").addEventListener("click", () => {
+    readSegs();
+    segs.push({ no: "", from: "", to: "" });
+    renderSegs();
+  });
+
   // live geocoding
   const locInput = document.getElementById("f-loc");
   const geoOut = document.getElementById("geo-out");
@@ -443,9 +489,6 @@ function itemEditor(existing, defaults) {
       departTime: document.getElementById("f-depart").value,
       arriveDate: document.getElementById("f-arrdate").value,
       legMode: document.getElementById("f-mode").value,
-      flightNo: document.getElementById("f-flightno").value.trim(),
-      fromAir: document.getElementById("f-fromair").value.trim().toUpperCase(),
-      toAir: document.getElementById("f-toair").value.trim().toUpperCase(),
       endDate: document.getElementById("f-enddate").value,
       notes: document.getElementById("f-notes").value.trim(),
       location: resolvedLoc,
@@ -454,13 +497,26 @@ function itemEditor(existing, defaults) {
     };
     if (!data.title) return;
 
-    // For flights, geocode the airport codes so we can draw the real arc.
+    // For flights, capture each segment and geocode its airports for the arc.
     if (data.legMode === "flight") {
-      data.fromLoc = await geocodeAirport(data.fromAir);
-      data.toLoc = await geocodeAirport(data.toAir);
-      // If no explicit location was set, pin the item at the destination airport.
-      if (!data.location && data.toLoc) {
-        data.location = { name: data.toAir, lat: data.toLoc.lat, lng: data.toLoc.lng, label: data.toLoc.label };
+      readSegs();
+      const flights = [];
+      for (const s of segs) {
+        if (!s.no && !s.from && !s.to) continue;
+        flights.push({
+          no: s.no,
+          from: s.from,
+          to: s.to,
+          fromLoc: await geocodeAirport(s.from),
+          toLoc: await geocodeAirport(s.to),
+        });
+      }
+      data.flights = flights;
+      // Pin the item at the final destination airport if no location was set.
+      const lastTo = flights.length ? flights[flights.length - 1].toLoc : null;
+      const lastCode = flights.length ? flights[flights.length - 1].to : "";
+      if (!data.location && lastTo) {
+        data.location = { name: lastCode, lat: lastTo.lat, lng: lastTo.lng, label: lastTo.label };
       }
     }
 
