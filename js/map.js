@@ -35,6 +35,25 @@ function ensureMap(id, opts = {}) {
     route: L.layerGroup().addTo(map),
     interactive: opts.interactive !== false,
   };
+
+  // Per-mode colour legend (only on the full interactive map).
+  if (entry.interactive) {
+    const legend = L.control({ position: "bottomright" });
+    legend.onAdd = () => {
+      const div = L.DomUtil.create("div", "map-legend");
+      div.innerHTML =
+        '<div class="ml-title">Travel mode</div>' +
+        Object.values(TRAVEL_MODES)
+          .map(
+            (m) =>
+              `<div class="ml-row"><span class="ml-swatch" style="background:${m.color}"></span>${m.icon} ${m.label}</div>`
+          )
+          .join("");
+      return div;
+    };
+    legend.addTo(map);
+  }
+
   _maps[id] = entry;
   return entry;
 }
