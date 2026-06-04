@@ -72,7 +72,7 @@ function removeSuggestion(id) {
   renderSuggestions();
   refreshOverviewIfActive();
 }
-function acceptSuggestion(id) {
+function acceptSuggestion(id, date) {
   const s = trip.suggestions.find((x) => x.id === id);
   if (!s) return;
   s.accepted = true;
@@ -80,7 +80,7 @@ function acceptSuggestion(id) {
     id: uid(),
     type: "event",
     title: s.title,
-    date: "",
+    date: date || "",
     time: "",
     notes: s.notes ? `From suggestion by ${s.by}: ${s.notes}` : `Suggested by ${s.by}`,
     location: s.location || null,
@@ -95,7 +95,7 @@ function acceptSuggestion(id) {
   renderTimeline();
   refreshMap();
   refreshOverviewIfActive();
-  toast("Added to timeline — set a date in the Timeline tab");
+  toast(date ? `Added to ${prettyDate(date)}` : "Added to timeline — set a date to schedule it");
 }
 
 function addCheck(text, assignee) {
