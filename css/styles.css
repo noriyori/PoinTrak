@@ -292,6 +292,19 @@ button.link {
 .dv-done .dv-title { text-decoration: line-through; opacity: 0.6; }
 .ov-leg { margin: 5px 0 5px 18px; }
 
+/* Drag a suggestion onto a day */
+.ov-sugg { cursor: grab; }
+.ov-sugg:active { cursor: grabbing; }
+.ov-grip { color: var(--muted); font-size: 14px; cursor: grab; }
+.ov-sugg.dragging { opacity: 0.5; }
+.ov-drag-hint { color: var(--muted); font-size: 11px; margin: 8px 2px 0; }
+.ov-dayview.drag-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  background: var(--panel-2);
+}
+.day-chip.drag-over { border-color: var(--accent); background: var(--panel-2); box-shadow: 0 0 0 2px var(--accent) inset; }
+
 .ov-hero { grid-column: 1 / -1; }
 .ov-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .ov-hero-title { font-size: 24px; font-weight: 800; }

@@ -404,6 +404,7 @@ function suggestionEditor() {
       <div class="form-row">
         <label>Location (optional)</label>
         <input id="s-loc" placeholder="e.g. Lake Tahoe" />
+        <div class="geo-result" id="s-geo">Type a place to pin it on the map.</div>
       </div>
       <div class="form-row">
         <label>Why / notes</label>
@@ -415,16 +416,40 @@ function suggestionEditor() {
     </form>
   `);
 
-  document.getElementById("sugg-form").addEventListener("submit", async (e) => {
+  // Live location lookup (same as the itinerary editor) so the suggestion
+  // carries real coordinates and shows on the map once accepted.
+  let resolvedLoc = null;
+  const locInput = document.getElementById("s-loc");
+  const geoOut = document.getElementById("s-geo");
+  const doGeo = debounce(async () => {
+    const q = locInput.value.trim();
+    if (!q) {
+      resolvedLoc = null;
+      geoOut.className = "geo-result";
+      geoOut.textContent = "Type a place to pin it on the map.";
+      return;
+    }
+    geoOut.className = "geo-result";
+    geoOut.textContent = "🔎 Looking up location…";
+    const hit = await geocode(q);
+    if (hit) {
+      resolvedLoc = { name: q, lat: hit.lat, lng: hit.lng, label: hit.label };
+      geoOut.className = "geo-result ok";
+      geoOut.textContent = "📍 " + hit.label;
+    } else {
+      resolvedLoc = { name: q };
+      geoOut.className = "geo-result err";
+      geoOut.textContent = "Couldn't pin that — it'll still be saved as text.";
+    }
+  }, 600);
+  locInput.addEventListener("input", doGeo);
+
+  document.getElementById("sugg-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const title = document.getElementById("s-title").value.trim();
     if (!title) return;
     const locName = document.getElementById("s-loc").value.trim();
-    let location = null;
-    if (locName) {
-      const hit = await geocode(locName);
-      location = hit ? { name: locName, lat: hit.lat, lng: hit.lng, label: hit.label } : { name: locName };
-    }
+    const location = resolvedLoc || (locName ? { name: locName } : null);
     addSuggestion({
       id: uid(),
       title,
@@ -887,15 +912,17 @@ function renderOverview() {
         topSugg.length
           ? `<ul class="ov-list">${topSugg
               .map(
-                (s) => `<li class="ov-li">
+                (s) => `<li class="ov-li ov-sugg" draggable="true" data-sugg="${s.id}" title="Drag onto a day to add it to the plan">
+                  <span class="ov-grip">⠿</span>
                   <span class="ov-vote">👍 ${s.votes || 0}</span>
                   <span class="ov-li-main">
                     <span class="ov-li-title">${escapeHtml(s.title)}</span>
-                    <span class="ov-li-sub">by ${escapeHtml(s.by || "someone")}</span>
+                    <span class="ov-li-sub">by ${escapeHtml(s.by || "someone")}${s.location?.name ? " · 📍 " + escapeHtml(s.location.name) : ""}</span>
                   </span>
                 </li>`
               )
-              .join("")}</ul>`
+              .join("")}</ul>
+             <p class="ov-drag-hint">Tip: drag a suggestion onto a day (or a day chip) to add it to the plan.</p>`
           : `<p class="empty-hint">No suggestions yet. <button class="link ov-add" data-add="suggestion">Suggest something →</button></p>`
       }
     </div>`;
@@ -973,8 +1000,52 @@ function renderOverview() {
     })
   );
 
+  wireSuggestionDrag(wrap);
   annotateLegSlots("overview", wrap.querySelector(".dv-body"), dayItems);
   refreshOverviewMap();
+}
+
+/**
+ * Drag a suggestion (from the Top suggestions tile) onto the day view or a
+ * day chip to accept it as an event on that day.
+ */
+function wireSuggestionDrag(wrap) {
+  const dayToDate = (key) =>
+    key && key !== "all" && key !== "unscheduled" ? key : "";
+
+  wrap.querySelectorAll("[data-sugg]").forEach((el) => {
+    el.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", el.dataset.sugg);
+      e.dataTransfer.effectAllowed = "copy";
+      el.classList.add("dragging");
+    });
+    el.addEventListener("dragend", () => el.classList.remove("dragging"));
+  });
+
+  const setupDrop = (node, getDate) => {
+    if (!node) return;
+    node.addEventListener("dragover", (e) => {
+      if (!e.dataTransfer.types.includes("text/plain")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      node.classList.add("drag-over");
+    });
+    node.addEventListener("dragleave", () => node.classList.remove("drag-over"));
+    node.addEventListener("drop", (e) => {
+      e.preventDefault();
+      node.classList.remove("drag-over");
+      const id = e.dataTransfer.getData("text/plain");
+      if (!id) return;
+      const date = getDate();
+      if (date) _overviewDay = date; // jump to the day we dropped on
+      acceptSuggestion(id, date);
+    });
+  };
+
+  setupDrop(wrap.querySelector(".ov-dayview"), () => dayToDate(_overviewDay));
+  wrap.querySelectorAll(".day-chip").forEach((chip) =>
+    setupDrop(chip, () => dayToDate(chip.dataset.day))
+  );
 }
 
 /** Quick "add a to-do" modal (used from the Overview tile). */
