@@ -698,6 +698,7 @@ function renderTimeline() {
     if (!valid) {
       const today = new Date().toISOString().slice(0, 10);
       _timelineDay = dayList.includes(today) ? today : dayList[0] || (hasUnscheduled ? "unscheduled" : null);
+      saveTimelineView();
     }
   }
   const items =
@@ -726,6 +727,7 @@ function renderTimeline() {
   controls.querySelectorAll("[data-tlmode]").forEach((b) =>
     b.addEventListener("click", () => {
       _timelineMode = b.dataset.tlmode;
+      saveTimelineView();
       renderTimeline();
     })
   );
@@ -733,7 +735,7 @@ function renderTimeline() {
     b.addEventListener("click", () => {
       if (b.hasAttribute("disabled")) return;
       const t = dayList.indexOf(_timelineDay) + Number(b.dataset.tlstep);
-      if (t >= 0 && t < dayList.length) { _timelineDay = dayList[t]; renderTimeline(); }
+      if (t >= 0 && t < dayList.length) { _timelineDay = dayList[t]; saveTimelineView(); renderTimeline(); }
     })
   );
   wrap.appendChild(controls);
@@ -1030,8 +1032,15 @@ function renderAll() {
    Overview — the "home" dashboard tying everything together
    ============================================================ */
 let _overviewDay = null; // selected day: a date string, "all", or "unscheduled"
-let _timelineMode = "all"; // Timeline tab view: "all" or "day"
-let _timelineDay = null; // selected day when in day-by-day mode
+let _timelineMode = localStorage.getItem("pointrak.timelineMode") || "all"; // "all" or "day"
+let _timelineDay = localStorage.getItem("pointrak.timelineDay") || null; // day when in day mode
+
+function saveTimelineView() {
+  try {
+    localStorage.setItem("pointrak.timelineMode", _timelineMode);
+    localStorage.setItem("pointrak.timelineDay", _timelineDay || "");
+  } catch (_) {}
+}
 
 /** Distinct, sorted day list combining the trip's date range and item dates. */
 function overviewDayList() {
