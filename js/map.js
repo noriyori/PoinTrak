@@ -170,8 +170,12 @@ async function drawLegs(entry, located) {
   for (let i = 0; i < located.length - 1; i++) {
     const from = located[i];
     const to = located[i + 1];
-    const mode = from.legMode || "car";
+    // The mode belongs to the ARRIVING stop (how you got to `to`).
+    const mode = to.legMode || "car";
     const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
+
+    // Flights are drawn as their own airport-to-airport arc; skip here.
+    if (mode === "flight") continue;
 
     // Fetch the route geometry for this mode (real roads/paths, or transit
     // shape when available); coords stays null -> we draw a straight line.

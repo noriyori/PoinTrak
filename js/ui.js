@@ -337,7 +337,7 @@ function itemEditor(existing, defaults) {
         <input id="f-title" required placeholder="e.g. Pick up rental car" value="${escapeHtml(it.title || "")}" />
       </div>
       <div class="form-row">
-        <label>How you'll travel to the next stop</label>
+        <label>Transportation <span class="lbl-soft">— how you get to this stop</span></label>
         <select id="f-mode">${modeOptions(it.legMode || "car")}</select>
       </div>
       <div class="form-row" id="flight-row" ${it.legMode === "flight" ? "" : "hidden"}>
@@ -913,15 +913,31 @@ async function annotateLegSlots(channel, root, items) {
     const next = byId[node.dataset.legTo];
     if (!cur || !next) continue;
 
-    const mode = cur.legMode || "car";
+    // The mode belongs to the ARRIVING event (how you get to `next`).
+    const mode = next.legMode || "car";
     const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
-    node.innerHTML = `<span class="leg-pill leg-calc">${m.icon} estimating ${m.label.toLowerCase()}…</span>`;
 
+    // A flight is represented by its own airport-to-airport arc; show its
+    // segments rather than estimating a path between the two stop pins.
+    if (mode === "flight") {
+      node.innerHTML = flightLegPill(next);
+      continue;
+    }
+
+    node.innerHTML = `<span class="leg-pill leg-calc">${m.icon} estimating ${m.label.toLowerCase()}…</span>`;
     const { minutes, km, estimated, legs } = await travelByMode(cur.location, next.location, mode);
     if (token !== _legTokens[channel]) return; // superseded by a newer render
     if (!node.isConnected) continue; // node replaced during the await
     node.innerHTML = buildLegPill(cur, next, minutes, km, estimated, m, legs);
   }
+}
+
+/** A static pill summarising a flight leg (segments). */
+function flightLegPill(it) {
+  const route = flightSegments(it)
+    .map((g) => [g.no, [g.from, g.to].filter(Boolean).join("→")].filter(Boolean).join(" "))
+    .join(", ");
+  return `<span class="leg-pill leg-ok">✈️ ${escapeHtml(route || "Flight")} to ${escapeHtml(it.title)}</span>`;
 }
 
 function annotateLegs(items) {
