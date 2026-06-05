@@ -51,29 +51,19 @@
         <span class="brand-logo">📍</span>
         <div class="brand-text">
           <strong>PoinTrak</strong>
-          <input id="trip-name" class="trip-name" placeholder="Name your trip…" />
+          <button id="trip-name-display" class="trip-name-display" title="Trip settings">Name your trip…</button>
         </div>
       </div>
-      <div class="trip-dates">
-        <label>From <input id="trip-start" type="date" /></label>
-        <label>To <input id="trip-end" type="date" /></label>
-      </div>
-      <div class="topbar-actions">
-        <button id="btn-who" class="ghost" title="Who's planning">👥 <span id="who-count">0</span></button>
-        <button id="btn-share" class="ghost" title="Share / sync">🔗 Share</button>
-        <button id="btn-export" class="ghost" title="Download trip file">⬇ Export</button>
-        <button id="btn-import" class="ghost" title="Load trip file">⬆ Import</button>
-        <input id="file-input" type="file" accept="application/json" hidden />
-        <button id="btn-lock" class="ghost" title="Lock app">🔒</button>
-      </div>
+      <button id="btn-settings" class="ghost btn-settings" title="Trip settings">⚙ <span class="btn-settings-lbl">Trip</span></button>
+      <input id="file-input" type="file" accept="application/json" hidden />
     </header>
 
     <nav class="tabs">
-      <button class="tab active" data-tab="overview">🏠 Overview</button>
-      <button class="tab" data-tab="timeline">🗓 Timeline</button>
-      <button class="tab" data-tab="map">🗺 Map</button>
-      <button class="tab" data-tab="suggestions">💡 Suggestions <span id="sugg-badge" class="badge" hidden>0</span></button>
-      <button class="tab" data-tab="checklist">✅ Checklist</button>
+      <button class="tab active" data-tab="overview"><span class="tab-ico">🏠</span><span class="tab-lbl">Overview</span></button>
+      <button class="tab" data-tab="timeline"><span class="tab-ico">🗓</span><span class="tab-lbl">Timeline</span></button>
+      <button class="tab" data-tab="map"><span class="tab-ico">🗺</span><span class="tab-lbl">Map</span></button>
+      <button class="tab" data-tab="suggestions"><span class="tab-ico">💡</span><span class="tab-lbl">Suggestions</span><span id="sugg-badge" class="badge" hidden>0</span></button>
+      <button class="tab" data-tab="checklist"><span class="tab-ico">✅</span><span class="tab-lbl">Checklist</span></button>
     </nav>
 
     <main class="content">
