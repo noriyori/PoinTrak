@@ -989,17 +989,85 @@ function renderChecklist() {
 }
 
 function renderHeader() {
-  // Don't overwrite a field the user is actively typing in (matters for live sync).
+  const disp = document.getElementById("trip-name-display");
+  if (disp) disp.textContent = trip.name || "Name your trip…";
+
+  // Keep the (open) settings fields in sync without clobbering active typing.
   const set = (id, val) => {
     const node = document.getElementById(id);
     if (node && document.activeElement !== node) node.value = val || "";
   };
-  set("trip-name", trip.name);
-  set("trip-start", trip.start);
-  set("trip-end", trip.end);
-  document.getElementById("who-count").textContent = trip.collaborators.length;
+  set("s-name", trip.name);
+  set("s-start", trip.start);
+  set("s-end", trip.end);
+
   const me = getMe();
-  document.getElementById("me-name").innerHTML = me ? avatar(me, true) : "—";
+  const meEl = document.getElementById("me-name");
+  if (meEl) meEl.innerHTML = me ? avatar(me, true) : "—";
+}
+
+/* ============================================================
+   Trip settings — consolidated name, dates, people, share/sync
+   ============================================================ */
+function tripSettings() {
+  const live = typeof syncEnabled === "function" && syncEnabled();
+  const me = getMe();
+  const roster = trip.collaborators.length
+    ? trip.collaborators.map((n) => avatar(n, true)).join(" ")
+    : `<span class="empty-hint">No one yet</span>`;
+
+  openModal(`
+    <h2>⚙ Trip settings</h2>
+    <div class="form-row">
+      <label>Trip name</label>
+      <input id="s-name" value="${escapeHtml(trip.name || "")}" placeholder="Name your trip…" />
+    </div>
+    <div class="form-grid">
+      <div class="form-row"><label>From</label><input id="s-start" type="date" value="${trip.start || ""}" /></div>
+      <div class="form-row"><label>To</label><input id="s-end" type="date" value="${trip.end || ""}" /></div>
+    </div>
+    <div class="form-row">
+      <label>Who's planning</label>
+      <div class="settings-roster">${roster}</div>
+      <div class="settings-me">You: ${me ? avatar(me, true) : "—"} <button class="link" id="s-identity">change</button></div>
+    </div>
+    <div class="form-row">
+      <label>Share &amp; backup</label>
+      <div class="settings-actions">
+        <button type="button" class="ghost" id="s-share">🔗 Share link</button>
+        <button type="button" class="ghost" id="s-export">⬇ Export</button>
+        <button type="button" class="ghost" id="s-import">⬆ Import</button>
+      </div>
+      <div class="geo-result ${live ? "ok" : ""}">${
+        live
+          ? "🟢 Live sync is on — changes appear for everyone instantly."
+          : "Saved on this device. Use Share or Export to sync with others."
+      }</div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="s-lock">🔒 Lock app</button>
+      <button type="button" class="primary" id="modal-done">Done</button>
+    </div>
+  `);
+
+  const nameEl = document.getElementById("s-name");
+  nameEl.addEventListener("input", () => {
+    trip.name = nameEl.value; saveTrip(); syncMeta({ name: trip.name });
+    const disp = document.getElementById("trip-name-display");
+    if (disp) disp.textContent = trip.name || "Name your trip…";
+  });
+  document.getElementById("s-start").addEventListener("change", (e) => {
+    trip.start = e.target.value; saveTrip(); syncMeta({ start: trip.start });
+  });
+  document.getElementById("s-end").addEventListener("change", (e) => {
+    trip.end = e.target.value; saveTrip(); syncMeta({ end: trip.end });
+  });
+  document.getElementById("s-identity").addEventListener("click", () => identityPicker());
+  document.getElementById("s-share").addEventListener("click", () => shareModal());
+  document.getElementById("s-export").addEventListener("click", () => exportTrip());
+  document.getElementById("s-import").addEventListener("click", () => document.getElementById("file-input").click());
+  document.getElementById("s-lock").addEventListener("click", () => lockApp());
+  document.getElementById("modal-done").addEventListener("click", () => closeModal());
 }
 
 function tabIsActive(name) {

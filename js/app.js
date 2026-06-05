@@ -190,16 +190,9 @@ function wireEvents() {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
   });
 
-  // Trip header fields
-  document.getElementById("trip-name").addEventListener("input", (e) => {
-    trip.name = e.target.value; saveTrip(); syncMeta({ name: trip.name });
-  });
-  document.getElementById("trip-start").addEventListener("change", (e) => {
-    trip.start = e.target.value; saveTrip(); syncMeta({ start: trip.start });
-  });
-  document.getElementById("trip-end").addEventListener("change", (e) => {
-    trip.end = e.target.value; saveTrip(); syncMeta({ end: trip.end });
-  });
+  // Trip settings (consolidated top-bar menu)
+  document.getElementById("btn-settings").addEventListener("click", () => tripSettings());
+  document.getElementById("trip-name-display").addEventListener("click", () => tripSettings());
 
   // Add buttons
   document.getElementById("btn-add-item").addEventListener("click", () => itemEditor(null));
@@ -221,18 +214,10 @@ function wireEvents() {
     if (e.target.id === "modal") closeModal();
   });
 
-  // Identity
+  // Identity (footer "change")
   document.getElementById("btn-rename-me").addEventListener("click", () => identityPicker());
-  document.getElementById("btn-who").addEventListener("click", () => {
-    const list = trip.collaborators.length ? trip.collaborators.join(", ") : "No one yet";
-    toast("Planning together: " + list);
-  });
 
-  // Export / Import
-  document.getElementById("btn-export").addEventListener("click", exportTrip);
-  document.getElementById("btn-import").addEventListener("click", () =>
-    document.getElementById("file-input").click()
-  );
+  // Import (button lives in Trip settings; the hidden file input stays in the header)
   document.getElementById("file-input").addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -249,43 +234,41 @@ function wireEvents() {
     reader.readAsText(file);
     e.target.value = "";
   });
+}
 
-  // Share
-  document.getElementById("btn-share").addEventListener("click", () => {
-    const link = encodeTripToHash();
-    const live = syncEnabled();
-    const liveNote = live
-      ? `<p class="empty-hint">🟢 <strong>Live sync is on</strong> (room
-         "${escapeHtml(window.POINTRAK_ROOM || "our-trip")}"). Just send your wife &amp;
-         friend this page's URL — once they unlock with the password, everyone's edits
-         appear instantly. The snapshot link below is a handy backup.</p>`
-      : `<p class="empty-hint">Send this link to your wife and friend. Opening it loads
-         &amp; merges this trip into their planner. They can edit, then share their link
-         back — changes merge by item, so nothing gets lost. (Turn on live sync by adding
-         a Firebase config — see the README.)</p>`;
-    openModal(`
-      <h2>Share / sync this trip</h2>
-      ${liveNote}
-      <textarea class="share-box" readonly>${escapeHtml(link)}</textarea>
-      <div class="modal-actions">
-        <button class="primary" id="copy-link">Copy snapshot link</button>
-      </div>
-    `);
-    document.getElementById("copy-link").addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(link);
-        toast("Link copied");
-      } catch {
-        toast("Select the text and copy manually");
-      }
-    });
+/* ---------- Share & lock (used from Trip settings) ---------- */
+function shareModal() {
+  const link = encodeTripToHash();
+  const live = syncEnabled();
+  const liveNote = live
+    ? `<p class="empty-hint">🟢 <strong>Live sync is on</strong> (room
+       "${escapeHtml(window.POINTRAK_ROOM || "our-trip")}"). Just send your wife &amp;
+       friend this page's URL — once they unlock with the password, everyone's edits
+       appear instantly. The snapshot link below is a handy backup.</p>`
+    : `<p class="empty-hint">Send this link to your wife and friend. Opening it loads
+       &amp; merges this trip into their planner. They can edit, then share their link
+       back — changes merge by item, so nothing gets lost.</p>`;
+  openModal(`
+    <h2>Share / sync this trip</h2>
+    ${liveNote}
+    <textarea class="share-box" readonly>${escapeHtml(link)}</textarea>
+    <div class="modal-actions">
+      <button class="primary" id="copy-link">Copy snapshot link</button>
+    </div>
+  `);
+  document.getElementById("copy-link").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("Link copied");
+    } catch {
+      toast("Select the text and copy manually");
+    }
   });
+}
 
-  // Lock
-  document.getElementById("btn-lock").addEventListener("click", () => {
-    localStorage.removeItem(AUTH_KEY);
-    location.reload();
-  });
+function lockApp() {
+  localStorage.removeItem(AUTH_KEY);
+  location.reload();
 }
 
 /* ---------- Start ---------- */
