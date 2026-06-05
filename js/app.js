@@ -128,7 +128,16 @@ function onTripSaved() {
 }
 
 /* ---------- Auth ---------- */
-const AUTH_KEY = "pointrak.unlocked";
+const AUTH_KEY = "pointrak.unlockedUntil";
+const AUTH_DAYS = 60; // stay unlocked this long between visits
+
+function isUnlocked() {
+  const until = Number(localStorage.getItem(AUTH_KEY) || 0);
+  return until > Date.now();
+}
+function rememberUnlock() {
+  localStorage.setItem(AUTH_KEY, String(Date.now() + AUTH_DAYS * 86400000));
+}
 
 function unlock() {
   document.getElementById("lock-screen").hidden = true;
@@ -137,8 +146,9 @@ function unlock() {
 }
 
 function setupLock() {
-  // Stay unlocked for this browser session only.
-  if (sessionStorage.getItem(AUTH_KEY) === "1") {
+  // Stay unlocked across reopens (handy for the iOS home-screen app).
+  if (isUnlocked()) {
+    rememberUnlock(); // sliding renewal
     unlock();
     return;
   }
@@ -148,7 +158,7 @@ function setupLock() {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (input.value === PASSWORD) {
-      sessionStorage.setItem(AUTH_KEY, "1");
+      rememberUnlock();
       unlock();
     } else {
       err.hidden = false;
@@ -273,7 +283,7 @@ function wireEvents() {
 
   // Lock
   document.getElementById("btn-lock").addEventListener("click", () => {
-    sessionStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem(AUTH_KEY);
     location.reload();
   });
 }
