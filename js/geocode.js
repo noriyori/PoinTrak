@@ -61,9 +61,38 @@ function flightLookupEnabled() {
   return !!(k && !k.startsWith("PASTE"));
 }
 
+const ADB_HEADERS = () => ({
+  "X-RapidAPI-Key": window.AERODATABOX_RAPIDAPI_KEY,
+  "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com",
+});
+
+/** Parse an AeroDataBox scheduledTime into { date, time, offset }. */
+function parseAdbTime(st) {
+  const s = (st && (st.local || st.utc)) || "";
+  const m = s.match(/(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?\s*([+-]\d{2}:?\d{2}|Z)?/);
+  return m ? { date: m[1], time: m[2], offset: m[3] || "" } : {};
+}
+function offsetMinutes(off) {
+  if (!off || off === "Z") return 0;
+  const m = off.match(/^([+-])(\d{2}):?(\d{2})$/);
+  return m ? (m[1] === "-" ? -1 : 1) * (parseInt(m[2], 10) * 60 + parseInt(m[3], 10)) : 0;
+}
+function toInstant(p) {
+  if (!p || !p.date || !p.time) return null;
+  const d = new Date(`${p.date}T${p.time}:00${p.offset || "Z"}`);
+  return isNaN(d) ? null : d;
+}
+/** Flight duration in minutes between two parsed times (uses offsets). */
+function flightDurationMin(dep, arr) {
+  const a = toInstant(dep), b = toInstant(arr);
+  if (!a || !b) return null;
+  const m = Math.round((b - a) / 60000);
+  return m > 0 && m < 24 * 60 * 2 ? m : null;
+}
+
 /**
  * Look up a flight by number (and optional YYYY-MM-DD date).
- * Returns { airline, from, fromName, to, toName, dep:{date,time}, arr:{date,time} }
+ * Returns { airline, from, fromName, to, toName, dep:{date,time,offset}, arr:{...} }
  * or { error } on failure.
  */
 async function lookupFlight(number, date) {
@@ -75,12 +104,7 @@ async function lookupFlight(number, date) {
   if (date) url += `/${date}`;
 
   try {
-    const res = await fetch(url, {
-      headers: {
-        "X-RapidAPI-Key": window.AERODATABOX_RAPIDAPI_KEY,
-        "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com",
-      },
-    });
+    const res = await fetch(url, { headers: ADB_HEADERS() });
     if (res.status === 404) return { error: "not-found" };
     if (!res.ok) return { error: "http-" + res.status };
     const data = await res.json();
@@ -89,11 +113,7 @@ async function lookupFlight(number, date) {
     const f = arr[0];
     const dep = f.departure || {};
     const ar = f.arrival || {};
-    const parse = (st) => {
-      const s = (st && (st.local || st.utc)) || "";
-      const m = s.match(/(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?\s*([+-]\d{2}:?\d{2}|Z)?/);
-      return m ? { date: m[1], time: m[2], offset: m[3] || "" } : {};
-    };
+    const parse = parseAdbTime;
     const code = (a) => a && (a.iata || a.icao || "");
     const nm = (a) => a && (a.shortName || a.municipalityName || a.name || "");
     return {
@@ -108,6 +128,58 @@ async function lookupFlight(number, date) {
   } catch (e) {
     return { error: "network" };
   }
+}
+
+/**
+ * Search flights by route: departures from `fromCode` to `toCode` on `date`
+ * (YYYY-MM-DD), via the AeroDataBox airport schedule. Returns { flights:[...] }
+ * or { error }. Needs the RapidAPI key and a plan that includes airport FIDS.
+ */
+async function searchFlightsByRoute(fromCode, toCode, date) {
+  if (!flightLookupEnabled()) return { error: "no-key" };
+  fromCode = (fromCode || "").trim().toUpperCase();
+  toCode = (toCode || "").trim().toUpperCase();
+  if (!fromCode || !toCode || !date) return { error: "missing" };
+
+  const windows = [[`${date}T00:00`, `${date}T11:59`], [`${date}T12:00`, `${date}T23:59`]];
+  const found = [];
+  let sawError = null;
+  for (const [f, t] of windows) {
+    const url =
+      `https://aerodatabox.p.rapidapi.com/flights/airports/iata/${fromCode}/${f}/${t}` +
+      `?direction=Departure&withLeg=true&withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
+    try {
+      const res = await fetch(url, { headers: ADB_HEADERS() });
+      if (!res.ok) { sawError = "http-" + res.status; continue; }
+      const data = await res.json();
+      for (const fl of data.departures || []) {
+        const arA = (fl.arrival && fl.arrival.airport) || {};
+        const arIata = (arA.iata || arA.icao || "").toUpperCase();
+        if (arIata !== toCode) continue;
+        const dep = parseAdbTime(fl.departure && fl.departure.scheduledTime);
+        const arr = parseAdbTime(fl.arrival && fl.arrival.scheduledTime);
+        found.push({
+          no: (fl.number || "").trim(),
+          airline: (fl.airline && fl.airline.name) || "",
+          from: fromCode,
+          to: toCode,
+          toName: arA.shortName || arA.municipalityName || arA.name || "",
+          dep,
+          arr,
+          durationMin: flightDurationMin(dep, arr),
+        });
+      }
+    } catch (e) {
+      sawError = "network";
+    }
+  }
+  if (!found.length) return { error: sawError || "not-found" };
+  // De-dupe by flight number, sort by departure time.
+  const seen = new Set();
+  const flights = found
+    .filter((x) => (x.no && !seen.has(x.no) ? seen.add(x.no) : false))
+    .sort((a, b) => (a.dep.time || "").localeCompare(b.dep.time || ""));
+  return { flights };
 }
 
 /** Debounce helper for live lookups while typing. */
