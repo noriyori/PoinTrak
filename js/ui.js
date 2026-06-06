@@ -772,6 +772,15 @@ function renderTimeline() {
   );
   wrap.appendChild(controls);
 
+  // Day-by-day mode: a Tripsy-style week strip to jump between days.
+  if (_timelineMode === "day") {
+    const strip = el(`<div class="day-chips tl-daystrip">${dayStripHtml(_timelineDay, { unscheduled: hasUnscheduled })}</div>`);
+    strip.querySelectorAll(".day-chip").forEach((b) =>
+      b.addEventListener("click", () => { _timelineDay = b.dataset.day; saveTimelineView(); renderTimeline(); })
+    );
+    wrap.appendChild(strip);
+  }
+
   // Days to render: in All mode show every calendar day in range (incl. empty
   // "free days") plus an Unscheduled bucket; in Day mode just the selected day.
   let dayKeys;
@@ -1033,6 +1042,14 @@ function renderSuggestions() {
 }
 
 let _addingSubFor = null; // checklist item id currently showing an "add subtask" input
+let _collapsedSections = new Set(JSON.parse(localStorage.getItem("pointrak.collapsedSections") || "[]"));
+function isSectionCollapsed(name) { return _collapsedSections.has(name || ""); }
+function toggleSectionCollapsed(name) {
+  name = name || "";
+  if (_collapsedSections.has(name)) _collapsedSections.delete(name);
+  else _collapsedSections.add(name);
+  try { localStorage.setItem("pointrak.collapsedSections", JSON.stringify([..._collapsedSections])); } catch (_) {}
+}
 
 function renderChecklist() {
   const ul = document.getElementById("checklist");
@@ -1064,12 +1081,17 @@ function renderChecklist() {
       total++; if (it.done) done++;
       for (const sub of childrenOf(it.id)) { total++; if (sub.done) done++; }
     }
-    ul.appendChild(el(`
-      <li class="ck-section">
-        <span class="ck-section-title">${escapeHtml(section || "General")}</span>
+    const collapsed = isSectionCollapsed(section);
+    const header = el(`
+      <li class="ck-section ${collapsed ? "collapsed" : ""}">
+        <span class="ck-sec-left"><span class="ck-chevron">▾</span><span class="ck-section-title">${escapeHtml(section || "General")}</span></span>
         <span class="ck-section-count">${done}/${total}</span>
       </li>
-    `));
+    `);
+    header.addEventListener("click", () => { toggleSectionCollapsed(section); renderChecklist(); });
+    ul.appendChild(header);
+
+    if (collapsed) continue;
     for (const it of inSection) {
       ul.appendChild(renderCheckRow(it, false));
       for (const sub of childrenOf(it.id)) ul.appendChild(renderCheckRow(sub, true));
@@ -1265,6 +1287,33 @@ function dayLabel(day, dayList) {
   return (idx >= 0 ? `Day ${idx + 1} · ` : "") + prettyDate(day);
 }
 
+/** Tripsy-style horizontal day strip: weekday + date number + event dots. */
+function dayStripHtml(selected, opts = {}) {
+  const days = overviewDayList();
+  const todayKey = new Date().toISOString().slice(0, 10);
+  let html = "";
+  if (opts.all) {
+    html += `<button class="day-chip day-pill ${selected === "all" ? "active" : ""}" data-day="all"><span class="dc-pill">All</span></button>`;
+  }
+  html += days
+    .map((d) => {
+      const dt = new Date(d + "T00:00:00");
+      const wd = dt.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3).toUpperCase();
+      const n = trip.items.filter((it) => it.date === d).length;
+      const dots = n
+        ? `<span class="dc-dots">${"•".repeat(Math.min(n, 3))}</span>`
+        : `<span class="dc-dots dc-none">·</span>`;
+      return `<button class="day-chip daycal ${selected === d ? "active" : ""} ${d === todayKey ? "is-today" : ""}" data-day="${d}">
+        <span class="dc-wd">${wd}</span><span class="dc-num">${dt.getDate()}</span>${dots}
+      </button>`;
+    })
+    .join("");
+  if (opts.unscheduled) {
+    html += `<button class="day-chip day-pill ${selected === "unscheduled" ? "active" : ""}" data-day="unscheduled"><span class="dc-pill">Unsched.</span></button>`;
+  }
+  return html;
+}
+
 function renderOverview() {
   const wrap = document.getElementById("overview");
   if (!wrap) return;
@@ -1304,6 +1353,8 @@ function renderOverview() {
 
   // ----- Hero -----
   const countdown = tripCountdown();
+  const tripLen = tripLengthDays();
+  const datesLine = tripDateRange() + (tripLen ? ` · ${tripLen}-day trip` : "");
   const crew = (trip.collaborators.length ? trip.collaborators : USERS)
     .map((n) => avatar(n, true))
     .join("");
@@ -1312,9 +1363,14 @@ function renderOverview() {
       <div class="ov-hero-top">
         <div>
           <div class="ov-hero-title">${escapeHtml(trip.name || "Your trip")}</div>
-          <div class="ov-hero-dates">${tripDateRange()}</div>
+          <div class="ov-hero-dates">${escapeHtml(datesLine)}</div>
         </div>
         ${countdown ? `<div class="ov-countdown">${countdown}</div>` : ""}
+      </div>
+      <div class="ov-quick">
+        <button type="button" class="ov-qbtn" data-q="add"><span class="ov-qico">＋</span>New activity</button>
+        <button type="button" class="ov-qbtn" data-q="map"><span class="ov-qico">🗺</span>Map</button>
+        <button type="button" class="ov-qbtn" data-q="suggest"><span class="ov-qico">💡</span>Suggest</button>
       </div>
       ${
         nextUp
@@ -1333,14 +1389,7 @@ function renderOverview() {
     </div>`;
 
   // ----- Day selector tile -----
-  const chip = (key, top, sub) =>
-    `<button class="day-chip ${key === _overviewDay ? "active" : ""}" data-day="${key}">
-      <span class="dc-top">${escapeHtml(top)}</span>${sub ? `<span class="dc-sub">${escapeHtml(sub)}</span>` : ""}
-    </button>`;
-  const dayChips =
-    chip("all", "All", "days") +
-    dayList.map((d, i) => chip(d, `Day ${i + 1}`, prettyDate(d))).join("") +
-    (hasUnscheduled ? chip("unscheduled", "Unscheduled", "") : "");
+  const dayChips = dayStripHtml(_overviewDay, { all: true, unscheduled: hasUnscheduled });
   const daySelector = `
     <div class="ov-card ov-dayselect">
       <div class="ov-card-head"><h3>📅 Days</h3></div>
@@ -1414,24 +1463,42 @@ function renderOverview() {
     </div>`;
 
   // ----- Checklist (right) -----
+  // ----- Checklist (right) — collapsible sections -----
+  const ckAll = trip.checklist;
+  const ckTop = ckAll.filter((c) => !c.parentId);
+  const ckKids = (id) => ckAll.filter((c) => c.parentId === id);
+  const ckSecOrder = [];
+  for (const c of ckTop) { const s = c.section || ""; if (!ckSecOrder.includes(s)) ckSecOrder.push(s); }
+  let checkBody;
+  if (!totalCount) {
+    checkBody = `<p class="empty-hint">No to-dos yet.</p>`;
+  } else {
+    checkBody = ckSecOrder.map((section) => {
+      const inSec = ckTop.filter((c) => (c.section || "") === section);
+      let t = 0, d = 0; const open = [];
+      for (const it of inSec) {
+        t++; if (it.done) d++; else open.push(it);
+        for (const sub of ckKids(it.id)) { t++; if (sub.done) d++; else open.push(sub); }
+      }
+      const collapsed = isSectionCollapsed(section);
+      const rows = collapsed
+        ? ""
+        : open.length
+        ? `<ul class="ov-list">${open.slice(0, 8).map((c) => `<li class="ov-li"><span class="ov-ico">⬜</span><span class="ov-li-main"><span class="ov-li-title">${escapeHtml(c.text)}</span></span>${c.assignee ? avatar(c.assignee, false) : ""}</li>`).join("")}</ul>`
+        : `<p class="empty-hint" style="margin:4px 0 0">All done 🎉</p>`;
+      return `<div class="ov-sec ${collapsed ? "collapsed" : ""}">
+        <button type="button" class="ov-sec-head" data-sec="${escapeHtml(section)}">
+          <span class="ck-chevron">▾</span><span class="ov-sec-title">${escapeHtml(section || "General")}</span><span class="ov-sec-count">${d}/${t}</span>
+        </button>${rows}
+      </div>`;
+    }).join("");
+  }
   const checkHtml = `
     <div class="ov-card">
       <div class="ov-card-head"><h3>✅ Checklist</h3><div class="ov-head-actions"><button class="ov-add" data-add="check">+ Add</button><button class="link ov-go" data-go="checklist">View all →</button></div></div>
       <div class="ov-progress"><div class="ov-progress-bar" style="width:${pct}%"></div></div>
       <div class="ov-progress-lbl">${doneCount} of ${totalCount} done (${pct}%)</div>
-      ${
-        openChecks.length
-          ? `<ul class="ov-list">${openChecks
-              .map(
-                (c) => `<li class="ov-li">
-                  <span class="ov-ico">⬜</span>
-                  <span class="ov-li-main"><span class="ov-li-title">${escapeHtml(c.text)}</span></span>
-                  ${c.assignee ? avatar(c.assignee, false) : ""}
-                </li>`
-              )
-              .join("")}</ul>`
-          : `<p class="empty-hint">${totalCount ? "All done! 🎉" : "No to-dos yet."}</p>`
-      }
+      ${checkBody}
     </div>`;
 
   // ----- Mini map (right) -----
@@ -1455,6 +1522,14 @@ function renderOverview() {
   wrap.querySelectorAll(".ov-go").forEach((b) =>
     b.addEventListener("click", () => switchTab(b.dataset.go))
   );
+  wrap.querySelectorAll(".ov-qbtn").forEach((b) =>
+    b.addEventListener("click", () => {
+      const q = b.dataset.q;
+      if (q === "add") itemEditor(null, addDefaults());
+      else if (q === "map") switchTab("map");
+      else if (q === "suggest") suggestionEditor();
+    })
+  );
   wrap.querySelectorAll(".ov-add").forEach((b) =>
     b.addEventListener("click", () => {
       if (b.dataset.add === "item") itemEditor(null, addDefaults());
@@ -1467,6 +1542,9 @@ function renderOverview() {
       e.stopPropagation();
       suggestionDayPicker(b.dataset.suggAdd);
     })
+  );
+  wrap.querySelectorAll(".ov-sec-head").forEach((b) =>
+    b.addEventListener("click", () => { toggleSectionCollapsed(b.dataset.sec); renderOverview(); })
   );
   wrap.querySelectorAll(".day-chip").forEach((b) =>
     b.addEventListener("click", () => {
@@ -1591,6 +1669,15 @@ function tripDateRange() {
   return "Dates not set yet";
 }
 
+/** Trip length in days (inclusive), or 0 if dates aren't both set. */
+function tripLengthDays() {
+  if (!trip.start || !trip.end) return 0;
+  const s = new Date(trip.start + "T00:00:00");
+  const e = new Date(trip.end + "T00:00:00");
+  const n = Math.round((e - s) / 86400000) + 1;
+  return n > 0 ? n : 0;
+}
+
 function tripCountdown() {
   if (!trip.start) return "";
   const start = new Date(trip.start + "T00:00:00");
@@ -1598,9 +1685,9 @@ function tripCountdown() {
   now.setHours(0, 0, 0, 0);
   const days = Math.round((start - now) / 86400000);
   if (isNaN(days)) return "";
-  if (days > 1) return `${days} days to go`;
-  if (days === 1) return "Tomorrow!";
-  if (days === 0) return "Today! 🎉";
+  if (days > 1) return `Starts in ${days} days`;
+  if (days === 1) return "Starts tomorrow";
+  if (days === 0) return "Starts today! 🎉";
   // during/after trip
   if (trip.end) {
     const end = new Date(trip.end + "T00:00:00");

@@ -239,25 +239,54 @@ button.link {
 .ov-add:hover { filter: brightness(1.08); }
 
 /* Day selector */
-.day-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.day-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.day-chips::-webkit-scrollbar { display: none; }
+.tl-daystrip { margin-bottom: 14px; }
 .day-chip {
   flex: 0 0 auto;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 6px 11px;
+  background: none;
+  border: none;
+  border-radius: 12px;
+  padding: 4px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 60px;
+  min-width: 44px;
   color: var(--text);
-  line-height: 1.25;
+  line-height: 1.1;
+  gap: 2px;
 }
-.day-chip:hover { border-color: var(--accent); }
-.day-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.day-chip .dc-top { font-size: 12px; font-weight: 700; white-space: nowrap; }
-.day-chip .dc-sub { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.day-chip.active .dc-sub { color: #e5edff; }
+/* Calendar-style day cell (weekday over number, with event dots) */
+.day-chip .dc-wd { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.day-chip .dc-num {
+  font-size: 16px; font-weight: 700;
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+}
+.day-chip:hover .dc-num { background: var(--panel-2); }
+.day-chip.active .dc-num { background: var(--accent); color: #fff; }
+.day-chip.is-today .dc-wd { color: var(--accent); }
+.day-chip .dc-dots { font-size: 9px; line-height: 6px; height: 6px; color: var(--accent); letter-spacing: 1px; }
+.day-chip .dc-dots.dc-none { color: transparent; }
+.day-chip.active .dc-dots { color: var(--accent); }
+/* All / Unscheduled pill chips */
+.day-chip.day-pill { justify-content: center; padding: 0 4px; }
+.day-chip.day-pill .dc-pill {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 16px; padding: 6px 12px; white-space: nowrap;
+}
+.day-chip.day-pill:hover .dc-pill { border-color: var(--accent); color: var(--text); }
+.day-chip.day-pill.active .dc-pill { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Overview quick actions (New activity / Map / Suggest) */
+.ov-quick { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.ov-qbtn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 22px; padding: 8px 14px; font-size: 13px; font-weight: 600;
+}
+.ov-qbtn:hover { border-color: var(--accent); }
+.ov-qbtn .ov-qico { font-size: 15px; }
 
 /* Day view */
 .dv-nav { display: flex; align-items: center; gap: 8px; }
@@ -633,8 +662,26 @@ button.link {
   align-items: baseline;
 }
 .checklist .ck-section:first-child { padding-top: 2px; }
+.checklist .ck-section { cursor: pointer; }
+.checklist .ck-section:hover .ck-section-title { color: var(--accent); }
+.ck-sec-left { display: inline-flex; align-items: center; gap: 8px; }
 .ck-section-title { font-weight: 800; font-size: 14px; }
 .ck-section-count { font-size: 12px; color: var(--muted); }
+.ck-chevron { font-size: 11px; color: var(--muted); transition: transform .15s; display: inline-block; }
+.collapsed > .ck-chevron, .ck-section.collapsed .ck-chevron, .ov-sec.collapsed .ck-chevron { transform: rotate(-90deg); }
+
+/* Overview collapsible checklist sections */
+.ov-sec { border-top: 1px solid var(--line); }
+.ov-sec:first-of-type { border-top: none; }
+.ov-sec-head {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: none; cursor: pointer;
+  padding: 8px 2px; color: var(--text); font: inherit;
+}
+.ov-sec-head:hover .ov-sec-title { color: var(--accent); }
+.ov-sec-title { font-weight: 700; font-size: 13px; flex: 1; text-align: left; }
+.ov-sec-count { font-size: 12px; color: var(--muted); }
 
 /* Sub-items: indented with a connector */
 .checklist .ck-sub { margin-left: 26px; background: var(--bg-soft); }
