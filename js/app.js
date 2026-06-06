@@ -98,8 +98,11 @@ function acceptSuggestion(id, date) {
   toast(date ? `Added to ${prettyDate(date)}` : "Added to timeline — set a date to schedule it");
 }
 
-function addCheck(text, assignee) {
-  const c = { id: uid(), text, assignee: assignee || "", done: false, by: getMe() };
+function addCheck(text, assignee, opts = {}) {
+  const c = {
+    id: uid(), text, assignee: assignee || "", done: false, by: getMe(),
+    section: opts.section || "", parentId: opts.parentId || "",
+  };
   trip.checklist.push(c);
   saveTrip();
   syncSet("checklist", c);
@@ -111,9 +114,12 @@ function toggleCheck(id) {
   if (c) { c.done = !c.done; saveTrip(); syncSet("checklist", c); renderChecklist(); refreshOverviewIfActive(); }
 }
 function deleteCheck(id) {
-  trip.checklist = trip.checklist.filter((x) => x.id !== id);
+  // Deleting a parent also removes its sub-items.
+  const kids = trip.checklist.filter((x) => x.parentId === id).map((x) => x.id);
+  trip.checklist = trip.checklist.filter((x) => x.id !== id && x.parentId !== id);
   saveTrip();
   syncRemove("checklist", id);
+  kids.forEach((k) => syncRemove("checklist", k));
   renderChecklist();
   refreshOverviewIfActive();
 }
@@ -203,9 +209,11 @@ function wireEvents() {
     e.preventDefault();
     const input = document.getElementById("checklist-input");
     const who = document.getElementById("checklist-assignee");
+    const section = document.getElementById("checklist-section");
     if (!input.value.trim()) return;
-    addCheck(input.value.trim(), who.value.trim());
+    addCheck(input.value.trim(), who.value.trim(), { section: section.value.trim() });
     input.value = ""; who.value = "";
+    // keep the section so several to-dos can be added to the same section
   });
 
   // Modal close

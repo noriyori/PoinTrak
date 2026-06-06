@@ -985,23 +985,94 @@ function renderSuggestions() {
   }
 }
 
+let _addingSubFor = null; // checklist item id currently showing an "add subtask" input
+
 function renderChecklist() {
   const ul = document.getElementById("checklist");
   ul.innerHTML = "";
-  for (const c of trip.checklist) {
-    const li = el(`
-      <li class="${c.done ? "done" : ""}">
-        <input type="checkbox" ${c.done ? "checked" : ""} />
-        <span class="ck-text">${escapeHtml(c.text)}</span>
-        ${c.by ? `<span class="ck-author" title="Added by ${escapeHtml(c.by)}">${avatar(c.by, false)}</span>` : ""}
-        ${c.assignee ? `<span class="ck-assignee">➜ ${avatar(c.assignee, true)}</span>` : ""}
-        <button class="ck-del" title="Delete">🗑</button>
-      </li>
-    `);
-    li.querySelector("input").addEventListener("change", () => toggleCheck(c.id));
-    li.querySelector(".ck-del").addEventListener("click", () => deleteCheck(c.id));
-    ul.appendChild(li);
+  const all = trip.checklist;
+  const topLevel = all.filter((c) => !c.parentId);
+  const childrenOf = (id) => all.filter((c) => c.parentId === id);
+
+  // Populate the section autocomplete list.
+  const sectionNames = [];
+  for (const c of topLevel) {
+    const s = (c.section || "").trim();
+    if (s && !sectionNames.includes(s)) sectionNames.push(s);
   }
+  const dl = document.getElementById("sections-list");
+  if (dl) dl.innerHTML = sectionNames.map((s) => `<option value="${escapeHtml(s)}"></option>`).join("");
+
+  // Section order = first appearance among top-level items.
+  const sections = [];
+  for (const c of topLevel) {
+    const s = c.section || "";
+    if (!sections.some((x) => x === s)) sections.push(s);
+  }
+
+  for (const section of sections) {
+    const inSection = topLevel.filter((c) => (c.section || "") === section);
+    let total = 0, done = 0;
+    for (const it of inSection) {
+      total++; if (it.done) done++;
+      for (const sub of childrenOf(it.id)) { total++; if (sub.done) done++; }
+    }
+    ul.appendChild(el(`
+      <li class="ck-section">
+        <span class="ck-section-title">${escapeHtml(section || "General")}</span>
+        <span class="ck-section-count">${done}/${total}</span>
+      </li>
+    `));
+    for (const it of inSection) {
+      ul.appendChild(renderCheckRow(it, false));
+      for (const sub of childrenOf(it.id)) ul.appendChild(renderCheckRow(sub, true));
+      if (_addingSubFor === it.id) ul.appendChild(renderAddSubRow(it));
+    }
+  }
+}
+
+function renderCheckRow(c, isSub) {
+  const li = el(`
+    <li class="ck-row ${isSub ? "ck-sub" : ""} ${c.done ? "done" : ""}">
+      <input type="checkbox" ${c.done ? "checked" : ""} />
+      <span class="ck-text">${escapeHtml(c.text)}</span>
+      ${c.by ? `<span class="ck-author" title="Added by ${escapeHtml(c.by)}">${avatar(c.by, false)}</span>` : ""}
+      ${c.assignee ? `<span class="ck-assignee">➜ ${avatar(c.assignee, true)}</span>` : ""}
+      ${!isSub ? `<button class="ck-sub-add" title="Add subtask">➕</button>` : ""}
+      <button class="ck-del" title="Delete">🗑</button>
+    </li>
+  `);
+  li.querySelector("input").addEventListener("change", () => toggleCheck(c.id));
+  li.querySelector(".ck-del").addEventListener("click", () => deleteCheck(c.id));
+  const subAdd = li.querySelector(".ck-sub-add");
+  if (subAdd) subAdd.addEventListener("click", () => {
+    _addingSubFor = _addingSubFor === c.id ? null : c.id;
+    renderChecklist();
+  });
+  return li;
+}
+
+function renderAddSubRow(parent) {
+  const li = el(`
+    <li class="ck-row ck-sub ck-addsub">
+      <input class="ck-sub-input" placeholder="Add subtask…" />
+      <button class="ck-sub-save primary">Add</button>
+    </li>
+  `);
+  const input = li.querySelector(".ck-sub-input");
+  const save = () => {
+    const v = input.value.trim();
+    if (!v) return;
+    addCheck(v, "", { section: parent.section || "", parentId: parent.id });
+    // addCheck re-renders; _addingSubFor stays set so the input reappears for the next one
+  };
+  li.querySelector(".ck-sub-save").addEventListener("click", save);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); save(); }
+    if (e.key === "Escape") { _addingSubFor = null; renderChecklist(); }
+  });
+  setTimeout(() => input.focus(), 0);
+  return li;
 }
 
 function renderHeader() {
@@ -1413,6 +1484,11 @@ function wireSuggestionDrag(wrap) {
 
 /** Quick "add a to-do" modal (used from the Overview tile). */
 function checklistEditor() {
+  const existing = [];
+  for (const c of trip.checklist) {
+    const s = (c.section || "").trim();
+    if (s && !existing.includes(s)) existing.push(s);
+  }
   openModal(`
     <h2>Add a to-do</h2>
     <form id="check-form">
@@ -1420,9 +1496,15 @@ function checklistEditor() {
         <label>Task</label>
         <input id="c-text" required placeholder="e.g. Book travel insurance" />
       </div>
-      <div class="form-row">
-        <label>Assignee (optional)</label>
-        <input id="c-assignee" list="people-list" placeholder="Peter / Niszki / JS" />
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Section (optional)</label>
+          <input id="c-section" list="sections-list" placeholder="e.g. Before the trip" />
+        </div>
+        <div class="form-row">
+          <label>Assignee (optional)</label>
+          <input id="c-assignee" list="people-list" placeholder="Peter / Niszki / JS" />
+        </div>
       </div>
       <div class="modal-actions">
         <button class="primary" type="submit">Add to-do</button>
@@ -1433,7 +1515,9 @@ function checklistEditor() {
     e.preventDefault();
     const text = document.getElementById("c-text").value.trim();
     if (!text) return;
-    addCheck(text, document.getElementById("c-assignee").value.trim());
+    addCheck(text, document.getElementById("c-assignee").value.trim(), {
+      section: document.getElementById("c-section").value.trim(),
+    });
     closeModal();
   });
 }
