@@ -502,6 +502,37 @@ button.link {
 .tl-actions button:hover { color: var(--text); border-color: var(--accent); }
 .tl-done .tl-title { text-decoration: line-through; opacity: 0.6; }
 
+/* Now-anchor: dim past, accent the next-up event */
+.tl-past { opacity: 0.55; }
+.tl-next { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18); }
+.next-tag, .dv-next .next-tag {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  padding: 1px 6px;
+  border-radius: 6px;
+  vertical-align: middle;
+  margin-right: 2px;
+}
+.chip-tz { color: var(--accent-2); }
+
+/* Empty "free day" rows + today marker */
+.day-empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 2px 2px 8px; }
+.day-today { background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 20px; letter-spacing: .03em; }
+.day-is-today .day-header { border-bottom-color: var(--accent); }
+
+/* Day-view now-anchor */
+.dv-past { opacity: 0.55; }
+.dv-next { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18); }
+
+/* Overview "next up" line */
+.ov-nextup { margin: 12px 0 0; font-size: 14px; color: var(--text); }
+.ov-nextup strong { color: var(--accent); }
+
 /* ---------- Map ---------- */
 #map {
   height: 70vh;

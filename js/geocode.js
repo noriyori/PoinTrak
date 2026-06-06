@@ -39,6 +39,15 @@ async function geocode(query) {
   }
 }
 
+/** Turn a UTC offset like "+02:00" into a friendly label like "UTC+2". */
+function tzLabel(off) {
+  if (!off) return "";
+  if (off === "Z" || off === "+00:00" || off === "+0000") return "UTC";
+  const m = off.match(/^([+-])(\d{2}):?(\d{2})$/);
+  if (!m) return "";
+  return "UTC" + m[1] + parseInt(m[2], 10) + (m[3] !== "00" ? ":" + m[3] : "");
+}
+
 /** Resolve an airport code/name (e.g. "ZRH", "JFK") to coordinates. */
 async function geocodeAirport(code) {
   if (!code) return null;
@@ -82,8 +91,8 @@ async function lookupFlight(number, date) {
     const ar = f.arrival || {};
     const parse = (st) => {
       const s = (st && (st.local || st.utc)) || "";
-      const m = s.match(/(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
-      return m ? { date: m[1], time: m[2] } : {};
+      const m = s.match(/(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?\s*([+-]\d{2}:?\d{2}|Z)?/);
+      return m ? { date: m[1], time: m[2], offset: m[3] || "" } : {};
     };
     const code = (a) => a && (a.iata || a.icao || "");
     const nm = (a) => a && (a.shortName || a.municipalityName || a.name || "");

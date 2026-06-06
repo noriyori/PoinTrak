@@ -160,9 +160,10 @@ function timeChips(it, opts = {}) {
         segs.map((g) => [g.no, [g.from, g.to].filter(Boolean).join("→")].filter(Boolean).join(" ")).join(", ")
       )}</span>`
     : "";
+  const tzChip = it.tz ? `<span class="chip chip-tz" title="Local time zone">🕓 ${escapeHtml(it.tz)}</span>` : "";
 
   // Flights/overnight travel read depart→arrive; everything else arrive→stay→depart.
-  const order = overnight ? [departChip, arriveChip, flightChip] : [arriveChip, stayChip, departChip, flightChip];
+  const order = overnight ? [departChip, arriveChip, tzChip, flightChip] : [arriveChip, stayChip, departChip, tzChip, flightChip];
   return order.filter(Boolean);
 }
 
@@ -180,6 +181,34 @@ function orderedItems() {
     const kb = (b.date || "9999") + sortTimeOf(b);
     return ka < kb ? -1 : ka > kb ? 1 : 0;
   });
+}
+
+/* ---------- "Now" anchor: past vs upcoming ---------- */
+function itemStartDate(it) {
+  if (!it.date) return null;
+  const t = (it.departTime || it.time || "00:00").slice(0, 5);
+  const d = new Date(it.date + "T" + t + ":00");
+  return isNaN(d) ? null : d;
+}
+function itemEndDate(it) {
+  const d = it.arriveDate || it.date;
+  if (!d) return null;
+  const t = (it.time || it.departTime || "23:59").slice(0, 5);
+  const dt = new Date(d + "T" + t + ":00");
+  return isNaN(dt) ? null : dt;
+}
+function isPastItem(it) {
+  const e = itemEndDate(it);
+  return e ? e.getTime() < Date.now() : false;
+}
+/** id of the next upcoming item (earliest start >= now), or null. */
+function nextUpItemId() {
+  const now = Date.now();
+  for (const it of orderedItems()) {
+    const s = itemStartDate(it);
+    if (s && s.getTime() >= now) return it.id;
+  }
+  return null;
 }
 
 /* ---------- Modal plumbing ---------- */
@@ -395,6 +424,7 @@ function itemEditor(existing, defaults) {
   // local working copy of resolved coordinates
   let resolvedLoc = it.location ? { ...it.location } : null;
   let chosenType = it.type;
+  let fetchedTz = it.tz || ""; // arrival time-zone label (auto-filled by flight lookup)
 
   // type picker
   document.querySelectorAll(".type-opt").forEach((btn) => {
@@ -492,6 +522,7 @@ function itemEditor(existing, defaults) {
       if (r.arr.date && depDate && r.arr.date !== depDate) {
         document.getElementById("f-arrdate").value = r.arr.date;
       }
+      fetchedTz = tzLabel(r.arr.offset) || fetchedTz; // arrival zone for the zone-change label
     }
     toast(`✈️ ${r.from || "?"} → ${r.to || "?"}${r.airline ? " · " + r.airline : ""}`);
   }
@@ -533,6 +564,7 @@ function itemEditor(existing, defaults) {
       stay: parseInt(document.getElementById("f-stay").value, 10) || 0,
       departTime: document.getElementById("f-depart").value,
       arriveDate: document.getElementById("f-arrdate").value,
+      tz: fetchedTz,
       legMode: document.getElementById("f-mode").value,
       endDate: document.getElementById("f-enddate").value,
       notes: document.getElementById("f-notes").value.trim(),
@@ -740,25 +772,38 @@ function renderTimeline() {
   );
   wrap.appendChild(controls);
 
-  empty.hidden = items.length > 0;
+  // Days to render: in All mode show every calendar day in range (incl. empty
+  // "free days") plus an Unscheduled bucket; in Day mode just the selected day.
+  let dayKeys;
+  if (_timelineMode === "day") {
+    dayKeys = _timelineDay ? [_timelineDay] : [];
+  } else {
+    dayKeys = dayList.slice();
+    if (hasUnscheduled) dayKeys.push("unscheduled");
+  }
+  empty.hidden = dayKeys.length > 0 || allItems.length > 0;
 
-  // group by date
   const groups = {};
   for (const it of items) {
-    const key = it.date || "Unscheduled";
+    const key = it.date || "unscheduled";
     (groups[key] = groups[key] || []).push(it);
   }
 
-  for (const key of Object.keys(groups)) {
-    const header =
-      key === "Unscheduled"
-        ? `<div class="day-title">Unscheduled</div>`
-        : `<div class="day-title">${prettyDate(key)}</div>`;
-    const group = el(`<div class="day-group"><div class="day-header">${header}</div></div>`);
+  const nextId = nextUpItemId();
+  const todayKey = new Date().toISOString().slice(0, 10);
 
-    const dayItems = groups[key];
+  for (const key of dayKeys) {
+    const isUns = key === "unscheduled";
+    const isToday = !isUns && key === todayKey;
+    const label = isUns ? "Unscheduled" : prettyDate(key);
+    const header = `<div class="day-title">${escapeHtml(label)}${isToday ? ' <span class="day-today">Today</span>' : ""}</div>`;
+    const group = el(`<div class="day-group ${isToday ? "day-is-today" : ""}"><div class="day-header">${header}</div></div>`);
+
+    const dayItems = groups[key] || [];
+    if (!dayItems.length) {
+      group.appendChild(el(`<div class="day-empty">${isUns ? "Nothing here yet" : "Free day — nothing planned"}</div>`));
+    }
     dayItems.forEach((it, idx) => {
-      const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
       const chips = timeChips(it);
       if (it.type === "hotel" && it.endDate) chips.push(`<span class="chip">🛏 until ${prettyDate(it.endDate)}</span>`);
       if (it.location?.name) {
@@ -771,11 +816,13 @@ function renderTimeline() {
       }
       if (it.by) chips.push(`<span class="chip chip-author">added by ${avatar(it.by, true)}</span>`);
 
+      const past = isPastItem(it);
+      const isNext = it.id === nextId;
       const card = el(`
-        <div class="tl-item ${it.done ? "tl-done" : ""}" data-type="${it.type}">
+        <div class="tl-item ${it.done ? "tl-done" : ""} ${past ? "tl-past" : ""} ${isNext ? "tl-next" : ""}" data-type="${it.type}">
           <div class="tl-icon">${itemIcon(it)}</div>
           <div class="tl-main">
-            <p class="tl-title">${escapeHtml(it.title)}</p>
+            <p class="tl-title">${isNext ? '<span class="next-tag">Next up</span> ' : ""}${escapeHtml(it.title)}</p>
             <div class="tl-meta">${chips.join("")}</div>
             ${it.notes ? `<p class="tl-notes">${escapeHtml(it.notes)}</p>` : ""}
           </div>
@@ -1223,6 +1270,8 @@ function renderOverview() {
   if (!wrap) return;
 
   const items = orderedItems();
+  const _nextId = nextUpItemId();
+  const nextUp = _nextId ? items.find((x) => x.id === _nextId) : null;
   const pendingSugg = trip.suggestions.filter((s) => !s.accepted);
   const topSugg = [...pendingSugg].sort((a, b) => (b.votes || 0) - (a.votes || 0)).slice(0, 4);
 
@@ -1267,6 +1316,13 @@ function renderOverview() {
         </div>
         ${countdown ? `<div class="ov-countdown">${countdown}</div>` : ""}
       </div>
+      ${
+        nextUp
+          ? `<div class="ov-nextup">⏭ <strong>Next up</strong> · ${itemIcon(nextUp)} ${escapeHtml(nextUp.title)}${
+              nextUp.date ? ` · ${shortDate(nextUp.date)}${nextUp.time ? " " + escapeHtml(nextUp.time) : ""}` : ""
+            }</div>`
+          : ""
+      }
       <div class="ov-stats">
         <div class="ov-stat"><span class="num">${items.length}</span><span class="lbl">itinerary items</span></div>
         <div class="ov-stat"><span class="num">${pendingSugg.length}</span><span class="lbl">open suggestions</span></div>
@@ -1296,19 +1352,21 @@ function renderOverview() {
   const prevDisabled = idx <= 0 ? "disabled" : "";
   const nextDisabled = idx < 0 || idx >= dayList.length - 1 ? "disabled" : "";
   let dayBody = "";
+  const nextId = nextUpItemId();
   if (!dayItems.length) {
-    dayBody = `<p class="empty-hint">Nothing planned for this day. <button class="link ov-add" data-add="item">Add something →</button></p>`;
+    dayBody = `<p class="empty-hint">Free day — nothing planned. <button class="link ov-add" data-add="item">Add something →</button></p>`;
   } else {
     dayItems.forEach((it, i) => {
-      const meta = ITEM_TYPES[it.type] || ITEM_TYPES.event;
       const chips = timeChips(it, { short: true });
       if (it.location?.name) chips.push(`<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`);
       if (it.by) chips.push(`<span class="chip chip-author">${avatar(it.by, false)}</span>`);
+      const past = isPastItem(it);
+      const isNext = it.id === nextId;
       dayBody += `
-        <div class="dv-item ${it.done ? "dv-done" : ""}" data-type="${it.type}" data-edit="${it.id}">
+        <div class="dv-item ${it.done ? "dv-done" : ""} ${past ? "dv-past" : ""} ${isNext ? "dv-next" : ""}" data-type="${it.type}" data-edit="${it.id}">
           <span class="dv-ico">${itemIcon(it)}</span>
           <div class="dv-main">
-            <div class="dv-title">${escapeHtml(it.title)}</div>
+            <div class="dv-title">${isNext ? '<span class="next-tag">Next up</span> ' : ""}${escapeHtml(it.title)}</div>
             <div class="dv-meta">${chips.join("")}</div>
           </div>
         </div>`;
