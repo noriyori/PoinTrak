@@ -820,6 +820,19 @@ button.link {
 }
 .flight-seg .seg-fetch:hover { border-color: var(--accent); }
 .flight-seg .seg-fetch:disabled { opacity: .6; }
+.flight-row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.flight-search-form { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 8px; }
+.flight-search-form input { flex: 1 1 80px; min-width: 0; }
+.flight-search-form .primary { flex: 0 0 auto; }
+.fs-result {
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+  text-align: left; background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; color: var(--text);
+}
+.fs-result:hover { border-color: var(--accent); background: var(--panel-2); }
+.fs-result .fs-airline { font-weight: 700; font-size: 14px; }
+.fs-result .fs-route { font-size: 13px; color: var(--muted); }
+.fs-result .fs-no { font-size: 11px; color: var(--muted); }
 .type-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .type-opt {
   flex: 1;

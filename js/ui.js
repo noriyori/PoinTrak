@@ -161,9 +161,11 @@ function timeChips(it, opts = {}) {
       )}</span>`
     : "";
   const tzChip = it.tz ? `<span class="chip chip-tz" title="Local time zone">🕓 ${escapeHtml(it.tz)}</span>` : "";
+  const seatBits = [it.resv ? "🎫 " + it.resv : "", it.seat ? "💺 " + it.seat : "", it.cost ? "💰 " + it.cost : ""].filter(Boolean);
+  const seatChip = seatBits.length ? `<span class="chip">${escapeHtml(seatBits.join(" · "))}</span>` : "";
 
   // Flights/overnight travel read depart→arrive; everything else arrive→stay→depart.
-  const order = overnight ? [departChip, arriveChip, tzChip, flightChip] : [arriveChip, stayChip, departChip, tzChip, flightChip];
+  const order = overnight ? [departChip, arriveChip, tzChip, flightChip, seatChip] : [arriveChip, stayChip, departChip, tzChip, flightChip, seatChip];
   return order.filter(Boolean);
 }
 
@@ -372,7 +374,17 @@ function itemEditor(existing, defaults) {
       <div class="form-row" id="flight-row" ${it.legMode === "flight" ? "" : "hidden"}>
         <label>Flights <span class="lbl-soft">— add a row per flight (e.g. connections)</span></label>
         <div id="flight-segs"></div>
-        <button type="button" id="add-seg" class="ghost" style="margin-top:6px">+ Add another flight</button>
+        <div class="flight-row-actions">
+          <button type="button" id="add-seg" class="ghost">+ Add another flight</button>
+          ${flightLookupEnabled() ? `<button type="button" id="search-flight" class="ghost">🔍 Search by route</button>` : ""}
+        </div>
+        <div id="flight-search" hidden></div>
+        <div class="form-grid3" style="margin-top:10px">
+          <input id="f-resv" placeholder="Reservation code" value="${escapeHtml(it.resv || "")}" />
+          <input id="f-seat" placeholder="Seat (e.g. 14C)" value="${escapeHtml(it.seat || "")}" />
+          <input id="f-seatclass" placeholder="Class" value="${escapeHtml(it.seatClass || "")}" />
+        </div>
+        <input id="f-cost" placeholder="Total cost (optional)" value="${escapeHtml(it.cost || "")}" style="margin-top:8px" />
       </div>
       <div class="form-grid">
         <div class="form-row">
@@ -508,10 +520,16 @@ function itemEditor(existing, defaults) {
       toast(msgs[r.error] || "Lookup failed (" + r.error + ")");
       return;
     }
+    applyFlightToSeg(i, r);
+    toast(`✈️ ${r.from || "?"} → ${r.to || "?"}${r.airline ? " · " + r.airline : ""}`);
+  }
+
+  // Fill segment i (and the item's dep/arrival/tz) from a looked-up flight.
+  function applyFlightToSeg(i, r) {
+    if (r.no) segs[i].no = r.no;
     if (r.from) segs[i].from = r.from;
     if (r.to) segs[i].to = r.to;
     renderSegs();
-    // First segment seeds the departure; last segment seeds the arrival.
     if (i === 0 && r.dep) {
       if (r.dep.date && !document.getElementById("f-date").value) document.getElementById("f-date").value = r.dep.date;
       if (r.dep.time) document.getElementById("f-depart").value = r.dep.time;
@@ -522,9 +540,71 @@ function itemEditor(existing, defaults) {
       if (r.arr.date && depDate && r.arr.date !== depDate) {
         document.getElementById("f-arrdate").value = r.arr.date;
       }
-      fetchedTz = tzLabel(r.arr.offset) || fetchedTz; // arrival zone for the zone-change label
+      fetchedTz = tzLabel(r.arr.offset) || fetchedTz;
     }
-    toast(`✈️ ${r.from || "?"} → ${r.to || "?"}${r.airline ? " · " + r.airline : ""}`);
+  }
+
+  // Inline "Search by route" panel.
+  const searchBtn = document.getElementById("search-flight");
+  if (searchBtn) {
+    const panel = document.getElementById("flight-search");
+    searchBtn.addEventListener("click", () => {
+      if (!panel.hidden) { panel.hidden = true; return; }
+      readSegs();
+      const last = segs[segs.length - 1] || {};
+      panel.hidden = false;
+      panel.innerHTML = `
+        <div class="flight-search-form">
+          <input id="fs-from" placeholder="From (IATA)" value="${escapeHtml(last.from || "")}" />
+          <input id="fs-to" placeholder="To (IATA)" value="${escapeHtml(last.to || "")}" />
+          <input id="fs-date" type="date" value="${document.getElementById("f-date").value || ""}" />
+          <button type="button" id="fs-go" class="primary">Search</button>
+        </div>
+        <div id="fs-results"></div>`;
+      document.getElementById("fs-go").addEventListener("click", runFlightSearch);
+    });
+  }
+
+  async function runFlightSearch() {
+    const from = document.getElementById("fs-from").value;
+    const to = document.getElementById("fs-to").value;
+    const date = document.getElementById("fs-date").value;
+    const out = document.getElementById("fs-results");
+    if (!from || !to || !date) { out.innerHTML = `<div class="empty-hint">Enter From, To and a date.</div>`; return; }
+    out.innerHTML = `<div class="empty-hint">🔎 Searching ${escapeHtml(from.toUpperCase())} → ${escapeHtml(to.toUpperCase())}…</div>`;
+    const r = await searchFlightsByRoute(from, to, date);
+    if (r.error) {
+      const msg = r.error === "not-found"
+        ? "No flights found for that route/date."
+        : r.error === "no-key"
+        ? "Add an AeroDataBox key to search."
+        : "Search unavailable (your plan may not include airport schedules, or CORS blocked it).";
+      out.innerHTML = `<div class="empty-hint">${msg} Enter the flight number manually instead.</div>`;
+      return;
+    }
+    out.innerHTML = r.flights
+      .map((f, idx) => {
+        const dur = f.durationMin ? " · " + humanDuration(f.durationMin) : "";
+        return `<button type="button" class="fs-result" data-i="${idx}">
+          <span class="fs-airline">${escapeHtml(f.airline || "Flight")}</span>
+          <span class="fs-route">↗ ${escapeHtml(f.from)} ${escapeHtml(f.dep.time || "")} → ${escapeHtml(f.to)} ${escapeHtml(f.arr.time || "")}${dur}</span>
+          <span class="fs-no">${escapeHtml(f.no || "")}</span>
+        </button>`;
+      })
+      .join("");
+    out.querySelectorAll(".fs-result").forEach((b) =>
+      b.addEventListener("click", () => {
+        const f = r.flights[Number(b.dataset.i)];
+        readSegs();
+        // replace a single empty row, otherwise append
+        if (segs.length === 1 && !segs[0].no && !segs[0].from && !segs[0].to) segs = [];
+        segs.push({ no: f.no, from: f.from, to: f.to });
+        renderSegs();
+        applyFlightToSeg(segs.length - 1, f);
+        document.getElementById("flight-search").hidden = true;
+        toast(`✈️ Added ${f.airline || ""} ${f.no || ""}`.trim());
+      })
+    );
   }
 
   // live geocoding
@@ -576,6 +656,10 @@ function itemEditor(existing, defaults) {
 
     // For flights, capture each segment and geocode its airports for the arc.
     if (data.legMode === "flight") {
+      data.resv = document.getElementById("f-resv").value.trim();
+      data.seat = document.getElementById("f-seat").value.trim();
+      data.seatClass = document.getElementById("f-seatclass").value.trim();
+      data.cost = document.getElementById("f-cost").value.trim();
       readSegs();
       const flights = [];
       for (const s of segs) {
