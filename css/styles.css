@@ -214,41 +214,31 @@ button.link {
 }
 .ov-col-left, .ov-col-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
-/* Desktop "map app" mode: full map backdrop + floating card rail */
+/* Desktop "map app" mode: cards on the left, large map on the right */
 .overview-grid.ov-mapmode {
-  display: block;
-  position: relative;
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 14px;
+  align-items: stretch;
   height: calc(100vh - 170px);
   min-height: 520px;
 }
-.ov-mapmode .ov-mapbg {
-  position: absolute; inset: 0;
-  z-index: 0;
-  border-radius: var(--radius);
-  overflow: hidden;
-  border: 1px solid var(--line);
-}
-/* position+z-index contains Leaflet's internal panes so they can't paint over the rail */
-.ov-mapmode .ov-mapbg #map-overview { width: 100%; height: 100%; position: relative; z-index: 0; }
 .ov-mapmode .ov-rail {
-  position: relative; z-index: 3;
-  width: 380px; max-width: 46%;
-  max-height: 100%;
+  min-width: 0;
   overflow-y: auto;
   display: flex; flex-direction: column; gap: 12px;
-  padding: 2px 4px 2px 2px;
+  padding-right: 4px;
   -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
 .ov-mapmode .ov-rail::-webkit-scrollbar { display: none; }
-.ov-mapmode .ov-rail .ov-card {
-  background: var(--panel); /* fallback */
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+.ov-mapmode .ov-mapbg {
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  height: 100%;
 }
-.ov-mapmode .ov-hero { grid-column: auto; }
+.ov-mapmode .ov-mapbg #map-overview { width: 100%; height: 100%; }
 .ov-mapmode .ov-rail .ov-stats { grid-template-columns: repeat(2, 1fr); }
-.ov-mapmode .ov-rail .ov-map-card { display: none; }
 .ov-card {
   background: var(--panel);
   border: 1px solid var(--line);

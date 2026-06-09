@@ -1599,8 +1599,8 @@ function renderOverview() {
   if (mapMode) {
     wrap.classList.add("ov-mapmode");
     wrap.innerHTML =
-      `<div class="ov-mapbg"><div id="map-overview"></div></div>` +
-      `<div class="ov-rail">${hero}${daySelector}${dayView}${suggHtml}${checkHtml}</div>`;
+      `<div class="ov-rail">${hero}${daySelector}${dayView}${suggHtml}${checkHtml}</div>` +
+      `<div class="ov-mapbg"><div id="map-overview"></div></div>`;
   } else {
     wrap.classList.remove("ov-mapmode");
     wrap.innerHTML =
