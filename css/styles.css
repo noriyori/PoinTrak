@@ -696,9 +696,24 @@ button.link {
   align-items: baseline;
 }
 .checklist .ck-section:first-child { padding-top: 2px; }
-.checklist .ck-section { cursor: pointer; }
 .checklist .ck-section:hover .ck-section-title { color: var(--accent); }
-.ck-sec-left { display: inline-flex; align-items: center; gap: 8px; }
+.ck-sec-left { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; min-width: 0; }
+.ck-sec-actions { display: inline-flex; align-items: center; gap: 6px; }
+.ck-mini { background: none; border: none; color: var(--muted); font-size: 13px; padding: 0 2px; line-height: 1; }
+.ck-mini:hover { color: var(--accent); }
+.ck-linkchip {
+  font-size: 11px; color: var(--accent);
+  background: rgba(59,130,246,0.14); border: 1px solid rgba(59,130,246,0.35);
+  border-radius: 14px; padding: 1px 8px; white-space: nowrap; cursor: pointer;
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis;
+}
+.ck-linkchip:hover { background: rgba(59,130,246,0.24); }
+
+/* Place thumbnails (auto from Wikipedia) */
+.ptk-thumb { display: none; flex: 0 0 auto; background-size: cover; background-position: center; border: 1px solid var(--line); }
+.ptk-thumb.has-photo { display: block; }
+.tl-thumb { width: 56px; height: 56px; border-radius: 10px; align-self: center; }
+.dv-thumb { width: 40px; height: 40px; border-radius: 8px; align-self: center; }
 .ck-section-title { font-weight: 800; font-size: 14px; }
 .ck-section-count { font-size: 12px; color: var(--muted); }
 .ck-chevron { font-size: 11px; color: var(--muted); transition: transform .15s; display: inline-block; }

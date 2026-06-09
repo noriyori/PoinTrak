@@ -919,6 +919,7 @@ function renderTimeline() {
             <div class="tl-meta">${chips.join("")}</div>
             ${it.notes ? `<p class="tl-notes">${escapeHtml(it.notes)}</p>` : ""}
           </div>
+          ${it.location?.name ? `<div class="ptk-thumb tl-thumb" data-q="${escapeHtml(it.location.name)}"></div>` : ""}
           <div class="tl-actions">
             <button data-act="comments" title="Comments">💬 ${(it.comments || []).length || ""}</button>
             <button data-act="done">${it.done ? "↺" : "✓"}</button>
@@ -944,6 +945,21 @@ function renderTimeline() {
 
   // Fill in travel legs (leave/arrive times + drive) asynchronously.
   annotateLegs(items);
+  loadThumbs(wrap);
+}
+
+/** Lazy-load place thumbnails into any .ptk-thumb[data-q] inside root. */
+async function loadThumbs(root) {
+  if (!root) return;
+  for (const el of root.querySelectorAll(".ptk-thumb[data-q]")) {
+    const q = el.dataset.q;
+    el.removeAttribute("data-q"); // avoid duplicate loads within this render
+    const url = await fetchPlacePhoto(q);
+    if (url && el.isConnected) {
+      el.style.backgroundImage = `url("${url}")`;
+      el.classList.add("has-photo");
+    }
+  }
 }
 
 /* ============================================================
@@ -1166,13 +1182,27 @@ function renderChecklist() {
       for (const sub of childrenOf(it.id)) { total++; if (sub.done) done++; }
     }
     const collapsed = isSectionCollapsed(section);
+    const secLinkId = (trip.sectionLinks || {})[section];
+    const secLinkEv = secLinkId ? trip.items.find((x) => x.id === secLinkId) : null;
     const header = el(`
       <li class="ck-section ${collapsed ? "collapsed" : ""}">
-        <span class="ck-sec-left"><span class="ck-chevron">▾</span><span class="ck-section-title">${escapeHtml(section || "General")}</span></span>
-        <span class="ck-section-count">${done}/${total}</span>
+        <span class="ck-sec-left">
+          <span class="ck-chevron">▾</span>
+          <span class="ck-section-title">${escapeHtml(section || "General")}</span>
+          ${secLinkEv ? `<span class="ck-linkchip" title="Linked event">🔗 ${escapeHtml(secLinkEv.title)}</span>` : ""}
+        </span>
+        <span class="ck-sec-actions">
+          <button class="ck-mini ck-sec-link" title="Link section to an event">🔗</button>
+          <button class="ck-mini ck-sec-rename" title="Rename section">✎</button>
+          <span class="ck-section-count">${done}/${total}</span>
+        </span>
       </li>
     `);
-    header.addEventListener("click", () => { toggleSectionCollapsed(section); renderChecklist(); });
+    header.querySelector(".ck-sec-left").addEventListener("click", () => { toggleSectionCollapsed(section); renderChecklist(); });
+    header.querySelector(".ck-sec-rename").addEventListener("click", (e) => { e.stopPropagation(); sectionRenamePrompt(section); });
+    header.querySelector(".ck-sec-link").addEventListener("click", (e) => { e.stopPropagation(); eventPicker((id) => linkSection(section, id), { allowNone: true }); });
+    const slc = header.querySelector(".ck-linkchip");
+    if (slc && secLinkEv) slc.addEventListener("click", (e) => { e.stopPropagation(); itemEditor(secLinkEv); });
     ul.appendChild(header);
 
     if (collapsed) continue;
@@ -1185,24 +1215,66 @@ function renderChecklist() {
 }
 
 function renderCheckRow(c, isSub) {
+  const linkEv = c.linkedItemId ? trip.items.find((x) => x.id === c.linkedItemId) : null;
   const li = el(`
     <li class="ck-row ${isSub ? "ck-sub" : ""} ${c.done ? "done" : ""}">
       <input type="checkbox" ${c.done ? "checked" : ""} />
       <span class="ck-text">${escapeHtml(c.text)}</span>
+      ${linkEv ? `<span class="ck-linkchip" title="Linked event">🔗 ${escapeHtml(linkEv.title)}</span>` : ""}
       ${c.by ? `<span class="ck-author" title="Added by ${escapeHtml(c.by)}">${avatar(c.by, false)}</span>` : ""}
       ${c.assignee ? `<span class="ck-assignee">➜ ${avatar(c.assignee, true)}</span>` : ""}
+      <button class="ck-mini ck-link" title="Link to an event">🔗</button>
       ${!isSub ? `<button class="ck-sub-add" title="Add subtask">➕</button>` : ""}
       <button class="ck-del" title="Delete">🗑</button>
     </li>
   `);
   li.querySelector("input").addEventListener("change", () => toggleCheck(c.id));
   li.querySelector(".ck-del").addEventListener("click", () => deleteCheck(c.id));
+  li.querySelector(".ck-link").addEventListener("click", () => eventPicker((id) => linkCheck(c.id, id), { allowNone: true }));
+  const lc = li.querySelector(".ck-linkchip");
+  if (lc && linkEv) lc.addEventListener("click", () => itemEditor(linkEv));
   const subAdd = li.querySelector(".ck-sub-add");
   if (subAdd) subAdd.addEventListener("click", () => {
     _addingSubFor = _addingSubFor === c.id ? null : c.id;
     renderChecklist();
   });
   return li;
+}
+
+/** Modal to pick an itinerary event to link to (callback gets the id, "" = none). */
+function eventPicker(onPick, opts = {}) {
+  const items = orderedItems();
+  const rows = items
+    .map((it) => `<button type="button" class="day-pick" data-id="${it.id}">${itemIcon(it)} ${escapeHtml(it.title)}${it.date ? ` · ${escapeHtml(shortDate(it.date))}` : ""}</button>`)
+    .join("");
+  openModal(`
+    <h2>Link to an event</h2>
+    <p class="empty-hint">Pick the itinerary event to connect this to.</p>
+    <div class="day-pick-list">
+      ${opts.allowNone ? `<button type="button" class="day-pick" data-id="">✕ No link</button>` : ""}
+      ${rows || `<p class="empty-hint">No itinerary events yet.</p>`}
+    </div>
+  `);
+  document.querySelectorAll(".day-pick").forEach((b) =>
+    b.addEventListener("click", () => { onPick(b.dataset.id); closeModal(); })
+  );
+}
+
+/** Modal to rename a checklist section. */
+function sectionRenamePrompt(oldName) {
+  openModal(`
+    <h2>Rename section</h2>
+    <div class="form-row">
+      <label>Section name</label>
+      <input id="sec-rename" value="${escapeHtml(oldName || "")}" placeholder="e.g. Before the trip" />
+    </div>
+    <div class="modal-actions"><button class="primary" id="sec-rename-save">Save</button></div>
+  `);
+  const inp = document.getElementById("sec-rename");
+  setTimeout(() => inp.focus(), 0);
+  const save = () => { renameSection(oldName, inp.value); closeModal(); };
+  document.getElementById("sec-rename-save").addEventListener("click", save);
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
 }
 
 function renderAddSubRow(parent) {
@@ -1503,6 +1575,7 @@ function renderOverview() {
             <div class="dv-title">${isNext ? '<span class="next-tag">Next up</span> ' : ""}${escapeHtml(it.title)}</div>
             <div class="dv-meta">${chips.join("")}</div>
           </div>
+          ${it.location?.name ? `<div class="ptk-thumb dv-thumb" data-q="${escapeHtml(it.location.name)}"></div>` : ""}
         </div>`;
       const next = dayItems[i + 1];
       if (next && it.location?.lat != null && next.location?.lat != null) {
@@ -1669,6 +1742,7 @@ function renderOverview() {
 
   wireSuggestionDrag(wrap);
   annotateLegSlots("overview", wrap.querySelector(".dv-body"), dayItems);
+  loadThumbs(wrap);
   refreshOverviewMap();
 }
 

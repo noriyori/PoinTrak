@@ -7,6 +7,42 @@
 const geoCache = {};
 
 /**
+ * Best-effort place photo (thumbnail) for a query, via Wikipedia's API
+ * (free, no key, CORS-enabled). Returns an image URL or null. Cached in
+ * localStorage so we don't re-query (empty string = "looked, none found").
+ */
+async function fetchPlacePhoto(query) {
+  const q = (query || "").trim();
+  if (!q) return null;
+  const key = "pointrak.photo." + q.toLowerCase();
+  try {
+    const cached = localStorage.getItem(key);
+    if (cached !== null) return cached || null;
+  } catch (_) {}
+  try {
+    const url =
+      "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*" +
+      "&prop=pageimages&piprop=thumbnail&pithumbsize=320&generator=search&gsrlimit=1&gsrsearch=" +
+      encodeURIComponent(q);
+    const res = await fetch(url);
+    let thumb = "";
+    if (res.ok) {
+      const data = await res.json();
+      const pages = data.query && data.query.pages;
+      if (pages) {
+        for (const k in pages) {
+          if (pages[k].thumbnail && pages[k].thumbnail.source) { thumb = pages[k].thumbnail.source; break; }
+        }
+      }
+    }
+    try { localStorage.setItem(key, thumb); } catch (_) {}
+    return thumb || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * Look up a place. Returns { lat, lng, label } or null.
  */
 async function geocode(query) {
