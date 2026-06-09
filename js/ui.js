@@ -9,9 +9,23 @@ const ITEM_TYPES = {
   task:   { icon: "✔️", label: "Task / errand" },
 };
 
-/** Departure time for an item: manual departTime if set, else arrival + stay. */
+/** Combine a date + time into a datetime-local value ("YYYY-MM-DDTHH:MM"). */
+function combineDT(d, t) {
+  if (!d) return "";
+  const time = t && /^\d{2}:\d{2}/.test(t) ? t.slice(0, 5) : "00:00";
+  return `${d}T${time}`;
+}
+/** Split a datetime-local value back into { date, time }. */
+function splitDT(v) {
+  if (!v) return { date: "", time: "" };
+  const [d, t] = v.split("T");
+  return { date: d || "", time: (t || "").slice(0, 5) };
+}
+
+/** "Leave" time of a stop (drives the leg to the next stop). */
 function departOf(it) {
-  if (it.departTime) return it.departTime;
+  if (it.type !== "travel" && it.endTime) return it.endTime; // event/hotel end time
+  if (it.departTime) return it.departTime;                   // travel departure / legacy
   if (it.time && it.stay) return shiftTime(it.time, it.stay).time;
   return null;
 }
@@ -144,6 +158,22 @@ function shortDate(d) {
 /** Chips describing an item's arrival/departure (with dates), stay + flight. */
 function timeChips(it, opts = {}) {
   const s = opts.short;
+
+  // Hotels / events / tasks read as Check-in/out or Start/End (with dates).
+  if (it.type !== "travel") {
+    const isHotel = it.type === "hotel";
+    const sIco = isHotel ? "🛎" : "🕘", eIco = isHotel ? "🚪" : "🏁";
+    const sLbl = isHotel ? "Check-in" : "Start", eLbl = isHotel ? "Check-out" : "End";
+    const overnightNT = it.endDate && it.endDate !== it.date;
+    const chips = [];
+    if (it.time) chips.push(`<span class="chip">${sIco} ${s ? "" : sLbl + " "}${escapeHtml(it.time)}</span>`);
+    if (it.endTime || it.endDate) {
+      chips.push(`<span class="chip">${eIco} ${s ? "" : eLbl + " "}${overnightNT ? shortDate(it.endDate) + " " : ""}${escapeHtml(it.endTime || "")}</span>`);
+    }
+    return chips;
+  }
+
+  // Travel: departure / arrival (+ flight, zone, seat).
   const overnight = it.arriveDate && it.arriveDate !== it.date;
   const dep = departOf(it);
 
@@ -170,11 +200,10 @@ function timeChips(it, opts = {}) {
 }
 
 /** Timeline items sorted by date then time, undated last. */
-/** Time used to place an item on its date: departure time for overnight
- *  travel (which departs this date but arrives later), else arrival time. */
+/** Start-of-day time used to place an item within its date. */
 function sortTimeOf(it) {
-  if (it.departTime && it.arriveDate && it.arriveDate !== it.date) return it.departTime;
-  return it.time || it.departTime || "99:99";
+  if (it.type === "travel") return it.departTime || it.time || "99:99"; // departure
+  return it.time || "99:99"; // start time
 }
 
 /** Within-day sort key: a manual `order` (set by drag) wins; otherwise by time. */
@@ -196,14 +225,14 @@ function orderedItems() {
 /* ---------- "Now" anchor: past vs upcoming ---------- */
 function itemStartDate(it) {
   if (!it.date) return null;
-  const t = (it.departTime || it.time || "00:00").slice(0, 5);
+  const t = ((it.type === "travel" ? it.departTime || it.time : it.time) || "00:00").slice(0, 5);
   const d = new Date(it.date + "T" + t + ":00");
   return isNaN(d) ? null : d;
 }
 function itemEndDate(it) {
-  const d = it.arriveDate || it.date;
+  const d = (it.type === "travel" ? it.arriveDate : it.endDate) || it.date;
   if (!d) return null;
-  const t = (it.time || it.departTime || "23:59").slice(0, 5);
+  const t = ((it.type === "travel" ? it.time : it.endTime) || it.time || it.departTime || "23:59").slice(0, 5);
   const dt = new Date(d + "T" + t + ":00");
   return isNaN(dt) ? null : dt;
 }
@@ -358,6 +387,9 @@ function refreshOpenComments() {
    ============================================================ */
 function itemEditor(existing, defaults) {
   const it = existing || { type: "event", ...(defaults || {}) };
+  const initialTravelTiming = it.type === "travel" || it.legMode === "flight";
+  const initialHotelTiming = it.type === "hotel" && !initialTravelTiming;
+  const initialEventTiming = !initialTravelTiming && it.type !== "hotel";
   const typeButtons = Object.entries(ITEM_TYPES)
     .map(
       ([key, meta]) => `
@@ -394,34 +426,26 @@ function itemEditor(existing, defaults) {
         </div>
         <input id="f-cost" placeholder="Total cost (optional)" value="${escapeHtml(it.cost || "")}" style="margin-top:8px" />
       </div>
-      <div class="form-grid">
-        <div class="form-row">
-          <label>Date</label>
-          <input id="f-date" type="date" value="${it.date || ""}" />
-        </div>
-        <div class="form-row" id="dep-time-cell" ${it.type === "hotel" ? "hidden" : ""}>
-          <label>Departure time</label>
-          <input id="f-depart" type="time" value="${it.departTime || ""}" />
-          <div class="geo-result">Leave blank to auto-calculate</div>
+      <!-- TRAVEL timing (departure / arrival + flight) -->
+      <div class="form-grid" id="timing-travel" ${initialTravelTiming ? "" : "hidden"}>
+        <div class="form-row"><label>Departure date</label><input id="f-date" type="date" value="${it.date || ""}" /></div>
+        <div class="form-row"><label>Departure time</label><input id="f-depart" type="time" value="${it.departTime || ""}" /></div>
+        <div class="form-row"><label>Arrival date <span class="lbl-soft">— if later</span></label><input id="f-arrdate" type="date" value="${it.arriveDate || ""}" /></div>
+        <div class="form-row"><label>Arrival time</label><input id="f-time" type="time" value="${it.time || ""}" /></div>
+      </div>
+      <!-- HOTEL timing (check-in / check-out) -->
+      <div id="timing-hotel" ${initialHotelTiming ? "" : "hidden"}>
+        <div class="form-grid">
+          <div class="form-row"><label>Check-in</label><input id="f-checkin" type="datetime-local" value="${combineDT(it.date, it.time)}" /></div>
+          <div class="form-row"><label>Check-out</label><input id="f-checkout" type="datetime-local" value="${combineDT(it.endDate, it.endTime)}" /></div>
         </div>
       </div>
-      <div class="form-grid">
-        <div class="form-row" id="arr-date-cell" ${it.type === "hotel" ? "hidden" : ""}>
-          <label>Arrival date <span class="lbl-soft">— if a later day</span></label>
-          <input id="f-arrdate" type="date" value="${it.arriveDate || ""}" />
+      <!-- EVENT / TASK timing (start / end) -->
+      <div id="timing-event" ${initialEventTiming ? "" : "hidden"}>
+        <div class="form-grid">
+          <div class="form-row"><label>Starts</label><input id="f-start" type="datetime-local" value="${combineDT(it.date, it.time)}" /></div>
+          <div class="form-row"><label>Ends <span class="lbl-soft">— optional</span></label><input id="f-end" type="datetime-local" value="${combineDT(it.endDate, it.endTime)}" /></div>
         </div>
-        <div class="form-row">
-          <label>Arrival time</label>
-          <input id="f-time" type="time" value="${it.time || ""}" />
-        </div>
-      </div>
-      <div class="form-row" id="stay-row" ${it.type === "hotel" ? "hidden" : ""}>
-        <label>Stay duration</label>
-        <select id="f-stay">${stayOptions(it.stay || 0)}</select>
-      </div>
-      <div class="form-row" id="enddate-row" ${it.type === "hotel" ? "" : "hidden"}>
-        <label>Check-out date</label>
-        <input id="f-enddate" type="date" value="${it.endDate || ""}" />
       </div>
       <div class="form-row">
         <label>Location / address</label>
@@ -446,24 +470,27 @@ function itemEditor(existing, defaults) {
   let chosenType = it.type;
   let fetchedTz = it.tz || ""; // arrival time-zone label (auto-filled by flight lookup)
 
+  // Show the right timing fields for the chosen type (and flight mode).
+  function updateTimingVisibility() {
+    const mode = document.getElementById("f-mode").value;
+    const travelTiming = chosenType === "travel" || mode === "flight";
+    document.getElementById("timing-travel").hidden = !travelTiming;
+    document.getElementById("timing-hotel").hidden = !(chosenType === "hotel" && !travelTiming);
+    document.getElementById("timing-event").hidden = !(!travelTiming && chosenType !== "hotel");
+    document.getElementById("flight-row").hidden = mode !== "flight";
+  }
+
   // type picker
   document.querySelectorAll(".type-opt").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".type-opt").forEach((b) => b.classList.remove("sel"));
       btn.classList.add("sel");
       chosenType = btn.dataset.type;
-      const hotel = chosenType === "hotel";
-      document.getElementById("enddate-row").hidden = !hotel;
-      document.getElementById("stay-row").hidden = hotel;
-      document.getElementById("dep-time-cell").hidden = hotel;
-      document.getElementById("arr-date-cell").hidden = hotel;
+      updateTimingVisibility();
     });
   });
 
-  // show flight detail fields only when the mode is Flight
-  document.getElementById("f-mode").addEventListener("change", (e) => {
-    document.getElementById("flight-row").hidden = e.target.value !== "flight";
-  });
+  document.getElementById("f-mode").addEventListener("change", updateTimingVisibility);
 
   // flight segments (supports connections: one row per flight)
   let segs = flightSegments(it).map((s) => ({ no: s.no || "", from: s.from || "", to: s.to || "" }));
@@ -643,18 +670,34 @@ function itemEditor(existing, defaults) {
 
   document.getElementById("item-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const mode = document.getElementById("f-mode").value;
+    const travelTiming = chosenType === "travel" || mode === "flight";
+
+    // Timing fields depend on which group is active.
+    let date = "", time = "", departTime = "", arriveDate = "", endDate = "", endTime = "";
+    if (travelTiming) {
+      date = document.getElementById("f-date").value;
+      time = document.getElementById("f-time").value;            // arrival
+      departTime = document.getElementById("f-depart").value;    // departure
+      arriveDate = document.getElementById("f-arrdate").value;
+    } else if (chosenType === "hotel") {
+      const ci = splitDT(document.getElementById("f-checkin").value);
+      const co = splitDT(document.getElementById("f-checkout").value);
+      date = ci.date; time = ci.time; endDate = co.date; endTime = co.time;
+    } else {
+      const s = splitDT(document.getElementById("f-start").value);
+      const en = splitDT(document.getElementById("f-end").value);
+      date = s.date; time = s.time; endDate = en.date; endTime = en.time;
+    }
+
     const data = {
       id: it.id || uid(),
       type: chosenType,
       title: document.getElementById("f-title").value.trim(),
-      date: document.getElementById("f-date").value,
-      time: document.getElementById("f-time").value,
-      stay: parseInt(document.getElementById("f-stay").value, 10) || 0,
-      departTime: document.getElementById("f-depart").value,
-      arriveDate: document.getElementById("f-arrdate").value,
+      date, time, departTime, arriveDate, endDate, endTime,
+      stay: it.stay || 0,
       tz: fetchedTz,
-      legMode: document.getElementById("f-mode").value,
-      endDate: document.getElementById("f-enddate").value,
+      legMode: mode,
       notes: document.getElementById("f-notes").value.trim(),
       location: resolvedLoc,
       done: it.done || false,
@@ -906,7 +949,6 @@ function renderTimeline() {
     }
     dayItems.forEach((it, idx) => {
       const chips = timeChips(it);
-      if (it.type === "hotel" && it.endDate) chips.push(`<span class="chip">🛏 until ${prettyDate(it.endDate)}</span>`);
       if (it.location?.name) {
         const am = appleMapsUrl(it.location);
         chips.push(
@@ -1092,8 +1134,8 @@ function buildLegPill(cur, next, minutes, km, estimated, m, legs) {
 
   let timing = "";
   let warn = false;
-  // A manual departure time wins; otherwise departure = arrival + stay.
-  const depart = cur.departTime || (cur.time && cur.stay ? fromMin(toMin(cur.time) + cur.stay) : null);
+  // When you leave the current stop (end/check-out/departure or arrival+stay).
+  const depart = departOf(cur);
   if (depart) {
     const leaveMin = toMin(depart);
     const arriveMin = leaveMin + minutes;
