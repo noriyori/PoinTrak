@@ -29,6 +29,19 @@ function toggleItemDone(id) {
   const it = trip.items.find((x) => x.id === id);
   if (it) { it.done = !it.done; saveTrip(); syncSet("items", it); renderTimeline(); refreshOverviewIfActive(); }
 }
+/** Apply a new manual order to a day's items (from drag-to-reorder). */
+function reorderItems(ids) {
+  let changed = false;
+  ids.forEach((id, i) => {
+    const it = trip.items.find((x) => x.id === id);
+    if (it && it.order !== i) { it.order = i; syncSet("items", it); changed = true; }
+  });
+  if (!changed) return;
+  saveTrip();
+  renderTimeline();
+  refreshMap();
+  refreshOverviewIfActive();
+}
 function addComment(collection, id, text) {
   const entity = (trip[collection] || []).find((x) => x.id === id);
   if (!entity) return;

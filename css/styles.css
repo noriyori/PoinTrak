@@ -517,6 +517,9 @@ button.link {
 .tl-item[data-type="travel"] { border-left-color: var(--t-travel); }
 .tl-item[data-type="task"]   { border-left-color: var(--t-task); }
 
+.tl-grip { color: var(--muted); cursor: grab; font-size: 14px; align-self: center; user-select: none; opacity: .55; }
+.tl-grip:hover { opacity: 1; color: var(--accent); }
+.tl-item.dragging { opacity: 0.5; outline: 2px dashed var(--accent); outline-offset: -2px; }
 .tl-icon { font-size: 22px; line-height: 1; padding-top: 2px; }
 .tl-main { flex: 1; min-width: 0; }
 .tl-title { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
@@ -714,6 +717,16 @@ button.link {
 .ptk-thumb.has-photo { display: block; }
 .tl-thumb { width: 56px; height: 56px; border-radius: 10px; align-self: center; }
 .dv-thumb { width: 40px; height: 40px; border-radius: 8px; align-self: center; }
+
+/* City visit results */
+.cv-list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; margin: 6px 0; }
+.cv-item { display: flex; align-items: center; gap: 10px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; cursor: pointer; }
+.cv-item input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--accent); }
+.cv-thumb { width: 48px; height: 48px; border-radius: 8px; flex: 0 0 auto; background: var(--panel-2); background-size: cover; background-position: center; }
+.cv-main { min-width: 0; }
+.cv-name { font-weight: 700; font-size: 14px; }
+.cv-rating { color: var(--warn); font-weight: 600; font-size: 12px; }
+.cv-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ck-section-title { font-weight: 800; font-size: 14px; }
 .ck-section-count { font-size: 12px; color: var(--muted); }
 .ck-chevron { font-size: 11px; color: var(--muted); transition: transform .15s; display: inline-block; }
