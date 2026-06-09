@@ -65,4 +65,4 @@ window.AERODATABOX_RAPIDAPI_KEY = "8d0d148958msh522b414f7fbe496p1c540ajsn654adfc
    Without a key, City visit still lets you add stops manually. The key is
    visible in the published site, so the website restriction above matters.
    ============================================================ */
-window.GOOGLE_API_KEY = "PASTE_GOOGLE_API_KEY";
+window.GOOGLE_API_KEY = "AIzaSyAW6lJ2_qiv6u6HgrD0FV_dE_aINTPLIMM";
