@@ -266,6 +266,53 @@ async function googlePlacesSearch(textQuery, maxResults) {
   }
 }
 
+/**
+ * Rich details for a single place (rating, website, phone, hours, photo).
+ * Returns the mapped place or { error }. Cached in localStorage.
+ */
+async function googlePlaceDetails(query) {
+  if (!googlePlacesEnabled()) return { error: "no-key" };
+  const q = (query || "").trim();
+  if (!q) return { error: "missing" };
+  const ck = "pointrak.place." + q.toLowerCase();
+  try { const c = localStorage.getItem(ck); if (c) return JSON.parse(c); } catch (_) {}
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": window.GOOGLE_API_KEY,
+        "X-Goog-FieldMask":
+          "places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount," +
+          "places.websiteUri,places.internationalPhoneNumber,places.regularOpeningHours.weekdayDescriptions," +
+          "places.googleMapsUri,places.editorialSummary,places.types,places.photos",
+      },
+      body: JSON.stringify({ textQuery: q, maxResultCount: 1 }),
+    });
+    if (!res.ok) return { error: "http-" + res.status };
+    const data = await res.json();
+    const p = data.places && data.places[0];
+    if (!p) return { error: "not-found" };
+    const out = {
+      name: (p.displayName && p.displayName.text) || "",
+      address: p.formattedAddress || "",
+      rating: p.rating || null,
+      ratingCount: p.userRatingCount || 0,
+      website: p.websiteUri || "",
+      phone: p.internationalPhoneNumber || "",
+      hours: (p.regularOpeningHours && p.regularOpeningHours.weekdayDescriptions) || [],
+      mapsUri: p.googleMapsUri || "",
+      summary: (p.editorialSummary && p.editorialSummary.text) || "",
+      types: p.types || [],
+      photo: p.photos && p.photos[0] ? googlePhotoUrl(p.photos[0].name, 480) : "",
+    };
+    try { localStorage.setItem(ck, JSON.stringify(out)); } catch (_) {}
+    return out;
+  } catch (e) {
+    return { error: "network" };
+  }
+}
+
 /** Debounce helper for live lookups while typing. */
 function debounce(fn, ms) {
   let t;
