@@ -223,13 +223,15 @@ button.link {
 }
 .ov-mapmode .ov-mapbg {
   position: absolute; inset: 0;
+  z-index: 0;
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--line);
 }
-.ov-mapmode .ov-mapbg #map-overview { width: 100%; height: 100%; }
+/* position+z-index contains Leaflet's internal panes so they can't paint over the rail */
+.ov-mapmode .ov-mapbg #map-overview { width: 100%; height: 100%; position: relative; z-index: 0; }
 .ov-mapmode .ov-rail {
-  position: relative; z-index: 2;
+  position: relative; z-index: 3;
   width: 380px; max-width: 46%;
   max-height: 100%;
   overflow-y: auto;
