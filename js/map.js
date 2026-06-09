@@ -208,9 +208,10 @@ function refreshMap() {
   refreshMapInto("map", { interactive: true });
 }
 
-/** Redraw the compact overview map if its container is on screen. */
+/** Redraw the overview map. Interactive in the wide desktop "map app" layout,
+    static (no scroll-trap) in the small stacked/mobile preview. */
 function refreshOverviewMap() {
-  if (document.getElementById("map-overview")) {
-    refreshMapInto("map-overview", { interactive: false });
-  }
+  if (!document.getElementById("map-overview")) return;
+  const wide = window.matchMedia("(min-width: 920px)").matches;
+  refreshMapInto("map-overview", { interactive: wide });
 }
