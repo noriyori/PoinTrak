@@ -218,6 +218,54 @@ async function searchFlightsByRoute(fromCode, toCode, date) {
   return { flights };
 }
 
+/* ---------- Google Places (New) — optional, for City-visit suggestions ---------- */
+function googlePlacesEnabled() {
+  const k = window.GOOGLE_API_KEY;
+  return !!(k && !k.startsWith("PASTE"));
+}
+
+/** Build a usable image URL for a Places (New) photo resource name. */
+function googlePhotoUrl(name, maxPx) {
+  if (!name || !googlePlacesEnabled()) return "";
+  return `https://places.googleapis.com/v1/${name}/media?maxWidthPx=${maxPx || 400}&key=${encodeURIComponent(window.GOOGLE_API_KEY)}`;
+}
+
+/**
+ * Text search for places (e.g. "top things to do in Zurich").
+ * Returns { places:[{name,address,lat,lng,rating,summary,types,photo}] } or { error }.
+ */
+async function googlePlacesSearch(textQuery, maxResults) {
+  if (!googlePlacesEnabled()) return { error: "no-key" };
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": window.GOOGLE_API_KEY,
+        "X-Goog-FieldMask":
+          "places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.types,places.editorialSummary,places.photos",
+      },
+      body: JSON.stringify({ textQuery, maxResultCount: Math.min(maxResults || 20, 20) }),
+    });
+    if (!res.ok) return { error: "http-" + res.status };
+    const data = await res.json();
+    const places = (data.places || []).map((p) => ({
+      name: (p.displayName && p.displayName.text) || "",
+      address: p.formattedAddress || "",
+      lat: p.location && p.location.latitude,
+      lng: p.location && p.location.longitude,
+      rating: p.rating || null,
+      ratingCount: p.userRatingCount || 0,
+      summary: (p.editorialSummary && p.editorialSummary.text) || "",
+      types: p.types || [],
+      photo: p.photos && p.photos[0] ? googlePhotoUrl(p.photos[0].name, 400) : "",
+    }));
+    return { places };
+  } catch (e) {
+    return { error: "network" };
+  }
+}
+
 /** Debounce helper for live lookups while typing. */
 function debounce(fn, ms) {
   let t;

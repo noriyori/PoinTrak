@@ -177,11 +177,19 @@ function sortTimeOf(it) {
   return it.time || it.departTime || "99:99";
 }
 
+/** Within-day sort key: a manual `order` (set by drag) wins; otherwise by time. */
+function withinDayKey(it) {
+  if (typeof it.order === "number") return it.order;
+  const t = sortTimeOf(it);
+  const [h, m] = t.split(":").map(Number);
+  return 1000 + (h * 60 + m); // unordered items sort by time, after any dragged ones
+}
+
 function orderedItems() {
   return [...trip.items].sort((a, b) => {
-    const ka = (a.date || "9999") + sortTimeOf(a);
-    const kb = (b.date || "9999") + sortTimeOf(b);
-    return ka < kb ? -1 : ka > kb ? 1 : 0;
+    const da = a.date || "9999", db = b.date || "9999";
+    if (da !== db) return da < db ? -1 : 1;
+    return withinDayKey(a) - withinDayKey(b);
   });
 }
 
@@ -912,14 +920,15 @@ function renderTimeline() {
       const past = isPastItem(it);
       const isNext = it.id === nextId;
       const card = el(`
-        <div class="tl-item ${it.done ? "tl-done" : ""} ${past ? "tl-past" : ""} ${isNext ? "tl-next" : ""}" data-type="${it.type}">
+        <div class="tl-item ${it.done ? "tl-done" : ""} ${past ? "tl-past" : ""} ${isNext ? "tl-next" : ""}" data-type="${it.type}" data-id="${it.id}" draggable="true">
+          <span class="tl-grip" title="Drag to reorder">⠿</span>
           <div class="tl-icon">${itemIcon(it)}</div>
           <div class="tl-main">
             <p class="tl-title">${isNext ? '<span class="next-tag">Next up</span> ' : ""}${escapeHtml(it.title)}</p>
             <div class="tl-meta">${chips.join("")}</div>
             ${it.notes ? `<p class="tl-notes">${escapeHtml(it.notes)}</p>` : ""}
           </div>
-          ${it.location?.name ? `<div class="ptk-thumb tl-thumb" data-q="${escapeHtml(it.location.name)}"></div>` : ""}
+          ${thumbHtml(it, "tl-thumb")}
           <div class="tl-actions">
             <button data-act="comments" title="Comments">💬 ${(it.comments || []).length || ""}</button>
             <button data-act="done">${it.done ? "↺" : "✓"}</button>
@@ -930,6 +939,7 @@ function renderTimeline() {
       card.querySelector('[data-act="edit"]').addEventListener("click", () => itemEditor(it));
       card.querySelector('[data-act="done"]').addEventListener("click", () => toggleItemDone(it.id));
       card.querySelector('[data-act="comments"]').addEventListener("click", () => commentsModal("items", it.id));
+      wireDragReorder(card, group);
       group.appendChild(card);
 
       // Auto travel leg to the next located stop on the same day.
@@ -946,6 +956,55 @@ function renderTimeline() {
   // Fill in travel legs (leave/arrive times + drive) asynchronously.
   annotateLegs(items);
   loadThumbs(wrap);
+}
+
+/* ---------- Drag to reorder (within a day) ---------- */
+function dragAfterElement(group, y) {
+  const els = [...group.querySelectorAll(".tl-item:not(.dragging)")];
+  let best = { offset: -Infinity, el: null };
+  for (const child of els) {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > best.offset) best = { offset, el: child };
+  }
+  return best.el;
+}
+function commitDayOrder(group) {
+  const ids = [...group.querySelectorAll(".tl-item")].map((c) => c.dataset.id).filter(Boolean);
+  if (ids.length) reorderItems(ids);
+}
+function wireDragReorder(card, group) {
+  card.addEventListener("dragstart", (e) => {
+    card.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", card.dataset.id); } catch (_) {}
+  });
+  card.addEventListener("dragend", () => {
+    card.classList.remove("dragging");
+    commitDayOrder(group);
+  });
+  if (!group._dndWired) {
+    group._dndWired = true;
+    group.addEventListener("dragover", (e) => {
+      const dragging = group.querySelector(".tl-item.dragging");
+      if (!dragging) return; // only reorder cards within their own day
+      e.preventDefault();
+      const after = dragAfterElement(group, e.clientY);
+      if (after == null) group.appendChild(dragging);
+      else group.insertBefore(dragging, after);
+    });
+  }
+}
+
+/** Thumbnail markup: use a stored photo (e.g. from Google) directly, else lazy-load from Wikipedia by name. */
+function thumbHtml(it, cls) {
+  if (it.location?.photo) {
+    return `<div class="ptk-thumb ${cls} has-photo" style="background-image:url('${escapeHtml(it.location.photo)}')"></div>`;
+  }
+  if (it.location?.name) {
+    return `<div class="ptk-thumb ${cls}" data-q="${escapeHtml(it.location.name)}"></div>`;
+  }
+  return "";
 }
 
 /** Lazy-load place thumbnails into any .ptk-thumb[data-q] inside root. */
@@ -1277,6 +1336,80 @@ function sectionRenamePrompt(oldName) {
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
 }
 
+/* ============================================================
+   City visit — suggest things to do for a location over N days
+   ============================================================ */
+let _cvPlaces = [];
+function cityVisitModal() {
+  openModal(`
+    <h2>🏙 City visit — things to do</h2>
+    <div class="form-row"><label>City / area</label><input id="cv-city" placeholder="e.g. Zurich" /></div>
+    <div class="form-grid">
+      <div class="form-row"><label>From</label><input id="cv-from" type="date" value="${trip.start || ""}" /></div>
+      <div class="form-row"><label>To</label><input id="cv-to" type="date" value="${trip.end || ""}" /></div>
+    </div>
+    <div class="modal-actions"><button class="primary" id="cv-go">Suggest things to do</button></div>
+    <div id="cv-results"></div>
+  `);
+  document.getElementById("cv-go").addEventListener("click", runCityVisit);
+  document.getElementById("cv-city").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runCityVisit(); } });
+}
+
+async function runCityVisit() {
+  const city = document.getElementById("cv-city").value.trim();
+  const from = document.getElementById("cv-from").value;
+  const to = document.getElementById("cv-to").value;
+  const out = document.getElementById("cv-results");
+  if (!city) { out.innerHTML = `<p class="empty-hint">Enter a city or area.</p>`; return; }
+  let nDays = 1;
+  if (from && to) { const d = Math.round((new Date(to) - new Date(from)) / 86400000) + 1; if (d > 0) nDays = d; }
+  if (!googlePlacesEnabled()) {
+    out.innerHTML = `<p class="empty-hint">Add a Google Places key (see js/routing-config.js) to auto-suggest. Until then, add stops with “+ New activity”.</p>`;
+    return;
+  }
+  out.innerHTML = `<p class="empty-hint">🔎 Finding things to do in ${escapeHtml(city)} (~${nDays} day${nDays > 1 ? "s" : ""})…</p>`;
+  const r = await googlePlacesSearch(`top things to do in ${city}`, Math.max(6, Math.min(20, nDays * 4)));
+  if (r.error) {
+    const msg = r.error === "no-key" ? "Add a Google Places key to search."
+      : "Couldn't fetch suggestions (" + r.error + "). Check the key/restrictions, or add manually.";
+    out.innerHTML = `<p class="empty-hint">${msg}</p>`;
+    return;
+  }
+  if (!r.places.length) { out.innerHTML = `<p class="empty-hint">No results — try a broader city name.</p>`; return; }
+  _cvPlaces = r.places;
+  const preCheck = nDays * 3;
+  out.innerHTML = `
+    <p class="empty-hint">Pick the ones you like — they go to Suggestions to vote on and drag onto days.</p>
+    <div class="cv-list">${r.places.map((p, i) => `
+      <label class="cv-item">
+        <input type="checkbox" data-i="${i}" ${i < preCheck ? "checked" : ""} />
+        <div class="cv-thumb ${p.photo ? "has-photo" : ""}" ${p.photo ? `style="background-image:url('${p.photo}')"` : ""}></div>
+        <div class="cv-main">
+          <div class="cv-name">${escapeHtml(p.name)}${p.rating ? ` <span class="cv-rating">★ ${p.rating}</span>` : ""}</div>
+          <div class="cv-sub">${escapeHtml(p.summary || p.types.slice(0, 2).join(", ") || p.address)}</div>
+        </div>
+      </label>`).join("")}</div>
+    <div class="modal-actions"><button class="primary" id="cv-add">Add selected to Suggestions</button></div>`;
+  document.getElementById("cv-add").addEventListener("click", () => {
+    let n = 0;
+    document.querySelectorAll(".cv-item input:checked").forEach((ch) => {
+      const p = _cvPlaces[Number(ch.dataset.i)];
+      if (!p) return;
+      addSuggestion({
+        id: uid(),
+        title: p.name,
+        location: { name: p.name, lat: p.lat, lng: p.lng, label: p.address, photo: p.photo || "" },
+        notes: [p.summary, p.rating ? `★ ${p.rating} (${p.ratingCount})` : "", "From City visit: " + city].filter(Boolean).join(" · "),
+        by: getMe() || "Someone",
+        votes: 0, voters: [], accepted: false,
+      });
+      n++;
+    });
+    closeModal();
+    toast(`Added ${n} idea${n !== 1 ? "s" : ""} to Suggestions`);
+  });
+}
+
 function renderAddSubRow(parent) {
   const li = el(`
     <li class="ck-row ck-sub ck-addsub">
@@ -1526,6 +1659,7 @@ function renderOverview() {
       <div class="ov-quick">
         <button type="button" class="ov-qbtn" data-q="add"><span class="ov-qcirc">＋</span><span class="ov-qlbl">New</span></button>
         <button type="button" class="ov-qbtn" data-q="flight"><span class="ov-qcirc">✈️</span><span class="ov-qlbl">Flight</span></button>
+        <button type="button" class="ov-qbtn" data-q="city"><span class="ov-qcirc">🏙</span><span class="ov-qlbl">City</span></button>
         <button type="button" class="ov-qbtn" data-q="map"><span class="ov-qcirc">🗺</span><span class="ov-qlbl">Map</span></button>
         <button type="button" class="ov-qbtn" data-q="suggest"><span class="ov-qcirc">💡</span><span class="ov-qlbl">Suggest</span></button>
       </div>
@@ -1575,7 +1709,7 @@ function renderOverview() {
             <div class="dv-title">${isNext ? '<span class="next-tag">Next up</span> ' : ""}${escapeHtml(it.title)}</div>
             <div class="dv-meta">${chips.join("")}</div>
           </div>
-          ${it.location?.name ? `<div class="ptk-thumb dv-thumb" data-q="${escapeHtml(it.location.name)}"></div>` : ""}
+          ${thumbHtml(it, "dv-thumb")}
         </div>`;
       const next = dayItems[i + 1];
       if (next && it.location?.lat != null && next.location?.lat != null) {
@@ -1696,6 +1830,7 @@ function renderOverview() {
       const q = b.dataset.q;
       if (q === "add") itemEditor(null, addDefaults());
       else if (q === "flight") itemEditor(null, { ...(addDefaults() || {}), type: "travel", legMode: "flight" });
+      else if (q === "city") cityVisitModal();
       else if (q === "map") switchTab("map");
       else if (q === "suggest") suggestionEditor();
     })
