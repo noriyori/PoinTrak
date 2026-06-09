@@ -1452,9 +1452,10 @@ function renderOverview() {
         ${countdown ? `<div class="ov-countdown">${countdown}</div>` : ""}
       </div>
       <div class="ov-quick">
-        <button type="button" class="ov-qbtn" data-q="add"><span class="ov-qico">＋</span>New activity</button>
-        <button type="button" class="ov-qbtn" data-q="map"><span class="ov-qico">🗺</span>Map</button>
-        <button type="button" class="ov-qbtn" data-q="suggest"><span class="ov-qico">💡</span>Suggest</button>
+        <button type="button" class="ov-qbtn" data-q="add"><span class="ov-qcirc">＋</span><span class="ov-qlbl">New</span></button>
+        <button type="button" class="ov-qbtn" data-q="flight"><span class="ov-qcirc">✈️</span><span class="ov-qlbl">Flight</span></button>
+        <button type="button" class="ov-qbtn" data-q="map"><span class="ov-qcirc">🗺</span><span class="ov-qlbl">Map</span></button>
+        <button type="button" class="ov-qbtn" data-q="suggest"><span class="ov-qcirc">💡</span><span class="ov-qlbl">Suggest</span></button>
       </div>
       ${
         nextUp
@@ -1592,10 +1593,21 @@ function renderOverview() {
       <div id="map-overview"></div>
     </div>`;
 
-  wrap.innerHTML =
-    hero +
-    `<div class="ov-col-left">${daySelector}${dayView}</div>` +
-    `<div class="ov-col-right">${suggHtml}${checkHtml}${mapHtml}</div>`;
+  // On wide screens, emulate the desktop app: full map backdrop + floating
+  // rail of rounded cards. Otherwise use the stacked two-column layout.
+  const mapMode = window.matchMedia("(min-width: 920px)").matches;
+  if (mapMode) {
+    wrap.classList.add("ov-mapmode");
+    wrap.innerHTML =
+      `<div class="ov-mapbg"><div id="map-overview"></div></div>` +
+      `<div class="ov-rail">${hero}${daySelector}${dayView}${suggHtml}${checkHtml}</div>`;
+  } else {
+    wrap.classList.remove("ov-mapmode");
+    wrap.innerHTML =
+      hero +
+      `<div class="ov-col-left">${daySelector}${dayView}</div>` +
+      `<div class="ov-col-right">${suggHtml}${checkHtml}${mapHtml}</div>`;
+  }
 
   // day-default for the "+ Add" buttons in the day view
   const addDefaults = () =>
@@ -1610,6 +1622,7 @@ function renderOverview() {
     b.addEventListener("click", () => {
       const q = b.dataset.q;
       if (q === "add") itemEditor(null, addDefaults());
+      else if (q === "flight") itemEditor(null, { ...(addDefaults() || {}), type: "travel", legMode: "flight" });
       else if (q === "map") switchTab("map");
       else if (q === "suggest") suggestionEditor();
     })
