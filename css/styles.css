@@ -214,10 +214,12 @@ button.link {
 }
 .ov-col-left, .ov-col-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
-/* Desktop "map app" mode: cards on the left, large map on the right */
+/* Desktop "map app" mode: cards on the left, large map on the right.
+   Break out of the centered content width so the map can be full-bleed. */
+.content:has(.ov-mapmode) { max-width: none; }
 .overview-grid.ov-mapmode {
   display: grid;
-  grid-template-columns: 380px 1fr;
+  grid-template-columns: 340px 1fr;
   gap: 14px;
   align-items: stretch;
   height: calc(100vh - 170px);
