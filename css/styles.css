@@ -517,6 +517,17 @@ button.link {
 .tl-item[data-type="travel"] { border-left-color: var(--t-travel); }
 .tl-item[data-type="task"]   { border-left-color: var(--t-task); }
 
+.tl-move { display: inline-flex; gap: 2px; }
+.tl-move button { padding: 2px 6px; font-size: 10px; line-height: 1; }
+.pd-photo { width: 100%; height: 160px; border-radius: 12px; background-size: cover; background-position: center; margin-bottom: 10px; }
+.pd-rating { color: var(--warn); font-weight: 700; margin-bottom: 6px; }
+.pd-rating .muted { color: var(--muted); font-weight: 400; }
+.pd-summary { color: var(--muted); margin: 0 0 8px; }
+.pd-line { font-size: 14px; margin: 4px 0; }
+.pd-line a { color: var(--accent); }
+.pd-hours { margin-top: 8px; font-size: 13px; }
+.pd-hours summary { cursor: pointer; color: var(--accent); }
+.pd-hours ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
 .tl-grip { color: var(--muted); cursor: grab; font-size: 14px; align-self: center; user-select: none; opacity: .55; }
 .tl-grip:hover { opacity: 1; color: var(--accent); }
 .tl-item.dragging { opacity: 0.5; outline: 2px dashed var(--accent); outline-offset: -2px; }

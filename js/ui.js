@@ -930,6 +930,8 @@ function renderTimeline() {
           </div>
           ${thumbHtml(it, "tl-thumb")}
           <div class="tl-actions">
+            <span class="tl-move"><button data-act="up" title="Move up">▲</button><button data-act="down" title="Move down">▼</button></span>
+            ${it.location?.name ? `<button data-act="info" title="Place details">ℹ️</button>` : ""}
             <button data-act="comments" title="Comments">💬 ${(it.comments || []).length || ""}</button>
             <button data-act="done">${it.done ? "↺" : "✓"}</button>
             <button data-act="edit">✎</button>
@@ -939,6 +941,10 @@ function renderTimeline() {
       card.querySelector('[data-act="edit"]').addEventListener("click", () => itemEditor(it));
       card.querySelector('[data-act="done"]').addEventListener("click", () => toggleItemDone(it.id));
       card.querySelector('[data-act="comments"]').addEventListener("click", () => commentsModal("items", it.id));
+      card.querySelector('[data-act="up"]').addEventListener("click", () => moveItem(it.id, -1));
+      card.querySelector('[data-act="down"]').addEventListener("click", () => moveItem(it.id, 1));
+      const infoBtn = card.querySelector('[data-act="info"]');
+      if (infoBtn) infoBtn.addEventListener("click", () => placeDetailsModal(it));
       wireDragReorder(card, group);
       group.appendChild(card);
 
@@ -1334,6 +1340,46 @@ function sectionRenamePrompt(oldName) {
   const save = () => { renameSection(oldName, inp.value); closeModal(); };
   document.getElementById("sec-rename-save").addEventListener("click", save);
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
+}
+
+/* ============================================================
+   Place details — rich info (rating, hours, website, phone)
+   ============================================================ */
+async function placeDetailsModal(it) {
+  const loc = it.location || {};
+  const title = loc.name || it.title || "Place";
+  openModal(`
+    <h2>${escapeHtml(title)}</h2>
+    <div id="pd-body"><p class="empty-hint">${googlePlacesEnabled() ? "Loading place details…" : "Add a Google Places key to see details. Meanwhile:"}</p></div>
+    <div class="modal-actions">
+      ${appleMapsUrl(loc) ? `<a class="ghost" href="${appleMapsUrl(loc)}" target="_blank" rel="noopener">Apple Maps ↗</a>` : ""}
+      <button class="primary" id="pd-close">Done</button>
+    </div>
+  `);
+  document.getElementById("pd-close").addEventListener("click", closeModal);
+  if (!googlePlacesEnabled()) return;
+
+  const query = [loc.name, loc.label].filter(Boolean).join(" ") || it.title;
+  const r = await googlePlaceDetails(query);
+  const body = document.getElementById("pd-body");
+  if (!body) return;
+  if (r.error) {
+    body.innerHTML = `<p class="empty-hint">Couldn't load details (${escapeHtml(r.error)}).</p>`;
+    return;
+  }
+  const hours = r.hours.length
+    ? `<details class="pd-hours"><summary>Opening hours</summary><ul>${r.hours.map((h) => `<li>${escapeHtml(h)}</li>`).join("")}</ul></details>`
+    : "";
+  body.innerHTML = `
+    ${r.photo ? `<div class="pd-photo" style="background-image:url('${escapeHtml(r.photo)}')"></div>` : ""}
+    ${r.rating ? `<div class="pd-rating">★ ${r.rating} <span class="muted">(${r.ratingCount})</span></div>` : ""}
+    ${r.summary ? `<p class="pd-summary">${escapeHtml(r.summary)}</p>` : ""}
+    ${r.address ? `<div class="pd-line">📍 ${escapeHtml(r.address)}</div>` : ""}
+    ${r.phone ? `<div class="pd-line">📞 <a href="tel:${escapeHtml(r.phone.replace(/\s+/g, ""))}">${escapeHtml(r.phone)}</a></div>` : ""}
+    ${r.website ? `<div class="pd-line">🔗 <a href="${escapeHtml(r.website)}" target="_blank" rel="noopener">Website ↗</a></div>` : ""}
+    ${r.mapsUri ? `<div class="pd-line">🗺 <a href="${escapeHtml(r.mapsUri)}" target="_blank" rel="noopener">Open in Google Maps ↗</a></div>` : ""}
+    ${hours}
+  `;
 }
 
 /* ============================================================

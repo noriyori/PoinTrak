@@ -29,6 +29,19 @@ function toggleItemDone(id) {
   const it = trip.items.find((x) => x.id === id);
   if (it) { it.done = !it.done; saveTrip(); syncSet("items", it); renderTimeline(); refreshOverviewIfActive(); }
 }
+/** Move an item up/down within its day (touch-friendly reorder). */
+function moveItem(id, dir) {
+  const it = trip.items.find((x) => x.id === id);
+  if (!it) return;
+  const day = orderedItems().filter((x) => (x.date || "") === (it.date || ""));
+  const idx = day.findIndex((x) => x.id === id);
+  const j = idx + dir;
+  if (idx < 0 || j < 0 || j >= day.length) return;
+  const ids = day.map((x) => x.id);
+  [ids[idx], ids[j]] = [ids[j], ids[idx]];
+  reorderItems(ids);
+}
+
 /** Apply a new manual order to a day's items (from drag-to-reorder). */
 function reorderItems(ids) {
   let changed = false;
