@@ -18,9 +18,10 @@ function blankTrip() {
     start: "",
     end: "",
     collaborators: [],
-    items: [],        // timeline: hotels, events, travel legs, tasks
-    suggestions: [],  // proposed activities
-    checklist: [],    // planning to-dos
+    items: [],          // timeline: hotels, events, travel legs, tasks
+    suggestions: [],    // proposed activities
+    checklist: [],      // planning to-dos
+    sectionLinks: {},   // checklist section name -> linked event id
     updated: Date.now(),
   };
 }
@@ -106,6 +107,7 @@ function mergeTrips(a, b) {
     votes: Math.max(x.votes || 0, y.votes || 0),
   }));
   out.checklist = mergeById(a.checklist, b.checklist);
+  out.sectionLinks = { ...(a.sectionLinks || {}), ...(b.sectionLinks || {}) };
   return out;
 }
 

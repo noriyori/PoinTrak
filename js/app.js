@@ -123,6 +123,44 @@ function deleteCheck(id) {
   renderChecklist();
   refreshOverviewIfActive();
 }
+function renameSection(oldName, newName) {
+  oldName = oldName || ""; newName = (newName || "").trim();
+  if (newName === oldName) return;
+  for (const c of trip.checklist) {
+    if ((c.section || "") === oldName) { c.section = newName; syncSet("checklist", c); }
+  }
+  // carry over collapse state + section→event link
+  if (typeof _collapsedSections !== "undefined" && _collapsedSections.has(oldName)) {
+    _collapsedSections.delete(oldName); _collapsedSections.add(newName);
+  }
+  if (trip.sectionLinks && trip.sectionLinks[oldName]) {
+    trip.sectionLinks[newName] = trip.sectionLinks[oldName];
+    delete trip.sectionLinks[oldName];
+  }
+  saveTrip();
+  syncMeta({ sectionLinks: trip.sectionLinks || {} });
+  renderChecklist();
+  refreshOverviewIfActive();
+}
+function linkCheck(id, eventId) {
+  const c = trip.checklist.find((x) => x.id === id);
+  if (!c) return;
+  c.linkedItemId = eventId || "";
+  saveTrip();
+  syncSet("checklist", c);
+  renderChecklist();
+  refreshOverviewIfActive();
+}
+function linkSection(name, eventId) {
+  name = name || "";
+  trip.sectionLinks = trip.sectionLinks || {};
+  if (eventId) trip.sectionLinks[name] = eventId;
+  else delete trip.sectionLinks[name];
+  saveTrip();
+  syncMeta({ sectionLinks: trip.sectionLinks });
+  renderChecklist();
+  refreshOverviewIfActive();
+}
 
 /* ---------- Save indicator ---------- */
 function onTripSaved() {
