@@ -511,7 +511,10 @@ button.link {
   border-radius: var(--radius);
   padding: 12px 14px;
   margin-bottom: 10px;
+  cursor: pointer;
 }
+.tl-item:hover { border-color: var(--accent); }
+.tl-item .tl-actions, .tl-item .tl-grip { cursor: default; }
 .tl-item[data-type="hotel"]  { border-left-color: var(--t-hotel); }
 .tl-item[data-type="event"]  { border-left-color: var(--t-event); }
 .tl-item[data-type="travel"] { border-left-color: var(--t-travel); }
