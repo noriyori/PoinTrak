@@ -1021,7 +1021,6 @@ function renderTimeline() {
           </div>
           ${thumbHtml(it, "tl-thumb")}
           <div class="tl-actions">
-            <span class="tl-move"><button data-act="up" title="Move up">▲</button><button data-act="down" title="Move down">▼</button></span>
             ${it.location?.name ? `<button data-act="info" title="Place details">ℹ️</button>` : ""}
             <button data-act="comments" title="Comments">💬 ${(it.comments || []).length || ""}</button>
             <button data-act="done">${it.done ? "↺" : "✓"}</button>
@@ -1029,11 +1028,14 @@ function renderTimeline() {
           </div>
         </div>
       `);
+      // Tap the row (anywhere but a button/link/grip) to open event details.
+      card.addEventListener("click", (e) => {
+        if (e.target.closest("button, a, .tl-grip, .tl-actions")) return;
+        itemEditor(it);
+      });
       card.querySelector('[data-act="edit"]').addEventListener("click", () => itemEditor(it));
       card.querySelector('[data-act="done"]').addEventListener("click", () => toggleItemDone(it.id));
       card.querySelector('[data-act="comments"]').addEventListener("click", () => commentsModal("items", it.id));
-      card.querySelector('[data-act="up"]').addEventListener("click", () => moveItem(it.id, -1));
-      card.querySelector('[data-act="down"]').addEventListener("click", () => moveItem(it.id, 1));
       const infoBtn = card.querySelector('[data-act="info"]');
       if (infoBtn) infoBtn.addEventListener("click", () => placeDetailsModal(it));
       wireDragReorder(card, group);
