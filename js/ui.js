@@ -475,6 +475,7 @@ function itemEditor(existing, defaults) {
         <label>Notes</label>
         <textarea id="f-notes" rows="2" placeholder="Confirmation #, who's responsible, etc.">${escapeHtml(it.notes || "")}</textarea>
       </div>
+      <div id="linked-checklist"></div>
       <div class="modal-actions">
         ${existing ? '<button type="button" class="ghost" id="f-delete">Delete</button>' : ""}
         <button type="submit" class="primary">${existing ? "Save" : "Add"}</button>
@@ -486,6 +487,8 @@ function itemEditor(existing, defaults) {
   let resolvedLoc = it.location ? { ...it.location } : null;
   let chosenType = it.type;
   let fetchedTz = it.tz || ""; // arrival time-zone label (auto-filled by flight lookup)
+
+  if (existing) renderLinkedChecklist(it.id);
 
   // Show the right timing fields for the chosen type (and flight mode).
   function updateTimingVisibility() {
@@ -977,6 +980,18 @@ function renderTimeline() {
     const header = `<div class="day-title">${escapeHtml(label)}${isToday ? ' <span class="day-today">Today</span>' : ""}</div>`;
     const group = el(`<div class="day-group ${isToday ? "day-is-today" : ""}"><div class="day-header">${header}</div></div>`);
 
+    // Hotel multi-day bands: quiet "staying at…" on in-between days, check-out on the last.
+    if (!isUns) {
+      for (const h of trip.items) {
+        if (h.type !== "hotel" || !h.date || !h.endDate || h.endDate <= h.date) continue;
+        if (key > h.date && key < h.endDate) {
+          group.appendChild(el(`<div class="hotel-band">🏨 Staying at ${escapeHtml(h.title)}</div>`));
+        } else if (key === h.endDate) {
+          group.appendChild(el(`<div class="hotel-band hotel-checkout">🚪 Check-out · ${escapeHtml(h.title)}${h.endTime ? " · " + escapeHtml(h.endTime) : ""}</div>`));
+        }
+      }
+    }
+
     const dayItems = groups[key] || [];
     if (!dayItems.length) {
       group.appendChild(el(`<div class="day-empty">${isUns ? "Nothing here yet" : "Free day — nothing planned"}</div>`));
@@ -1095,7 +1110,11 @@ async function loadThumbs(root) {
   for (const el of root.querySelectorAll(".ptk-thumb[data-q]")) {
     const q = el.dataset.q;
     el.removeAttribute("data-q"); // avoid duplicate loads within this render
-    const url = await fetchPlacePhoto(q);
+    let url = await fetchPlacePhoto(q); // Wikipedia first (landmarks/cities)
+    if (!url && googlePlacesEnabled()) {
+      const r = await googlePlaceDetails(q); // Google for hotels/restaurants/etc.
+      if (r && r.photo) url = r.photo;
+    }
     if (url && el.isConnected) {
       el.style.backgroundImage = `url("${url}")`;
       el.classList.add("has-photo");
@@ -1316,7 +1335,9 @@ function renderChecklist() {
   }
 
   for (const section of sections) {
-    const inSection = topLevel.filter((c) => (c.section || "") === section);
+    const inSection = topLevel
+      .filter((c) => (c.section || "") === section)
+      .sort((a, b) => (a.order ?? 1e6) - (b.order ?? 1e6));
     let total = 0, done = 0;
     for (const it of inSection) {
       total++; if (it.done) done++;
@@ -1326,7 +1347,7 @@ function renderChecklist() {
     const secLinkId = (trip.sectionLinks || {})[section];
     const secLinkEv = secLinkId ? trip.items.find((x) => x.id === secLinkId) : null;
     const header = el(`
-      <li class="ck-section ${collapsed ? "collapsed" : ""}">
+      <li class="ck-section ${collapsed ? "collapsed" : ""}" data-section="${escapeHtml(section)}">
         <span class="ck-sec-left">
           <span class="ck-chevron">▾</span>
           <span class="ck-section-title">${escapeHtml(section || "General")}</span>
@@ -1358,7 +1379,8 @@ function renderChecklist() {
 function renderCheckRow(c, isSub) {
   const linkEv = c.linkedItemId ? trip.items.find((x) => x.id === c.linkedItemId) : null;
   const li = el(`
-    <li class="ck-row ${isSub ? "ck-sub" : ""} ${c.done ? "done" : ""}">
+    <li class="ck-row ${isSub ? "ck-sub" : ""} ${c.done ? "done" : ""}" data-id="${c.id}" ${isSub ? "" : 'draggable="true"'}>
+      ${isSub ? "" : `<span class="ck-grip" title="Drag to reorder">⠿</span>`}
       <input type="checkbox" ${c.done ? "checked" : ""} />
       <span class="ck-text">${escapeHtml(c.text)}</span>
       ${linkEv ? `<span class="ck-linkchip" title="Linked event">🔗 ${escapeHtml(linkEv.title)}</span>` : ""}
@@ -1379,7 +1401,59 @@ function renderCheckRow(c, isSub) {
     _addingSubFor = _addingSubFor === c.id ? null : c.id;
     renderChecklist();
   });
+  if (!isSub) wireChecklistDrag(li);
   return li;
+}
+
+/* ---------- Checklist drag-to-reorder (within / across sections) ---------- */
+function wireChecklistDrag(li) {
+  li.addEventListener("dragstart", (e) => {
+    li.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", li.dataset.id); } catch (_) {}
+  });
+  li.addEventListener("dragend", () => {
+    li.classList.remove("dragging");
+    commitChecklistOrder();
+  });
+  const ul = document.getElementById("checklist");
+  if (ul && !ul._ckDnd) {
+    ul._ckDnd = true;
+    ul.addEventListener("dragover", (e) => {
+      const dragging = ul.querySelector(".ck-row.dragging");
+      if (!dragging) return;
+      e.preventDefault();
+      const after = ckDragAfter(ul, e.clientY);
+      if (after == null) ul.appendChild(dragging);
+      else ul.insertBefore(dragging, after);
+    });
+  }
+}
+function ckDragAfter(ul, y) {
+  const els = [...ul.querySelectorAll(".ck-row:not(.ck-sub):not(.dragging)")];
+  let best = { offset: -Infinity, el: null };
+  for (const child of els) {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > best.offset) best = { offset, el: child };
+  }
+  return best.el;
+}
+/** Read the checklist DOM and persist each top-level item's section + order. */
+function commitChecklistOrder() {
+  const ul = document.getElementById("checklist");
+  if (!ul) return;
+  const updates = [];
+  let section = "";
+  const counters = {};
+  for (const li of ul.children) {
+    if (li.classList.contains("ck-section")) { section = li.dataset.section || ""; counters[section] = 0; continue; }
+    if (li.classList.contains("ck-row") && !li.classList.contains("ck-sub") && li.dataset.id) {
+      updates.push({ id: li.dataset.id, section, order: counters[section] = (counters[section] || 0), });
+      counters[section]++;
+    }
+  }
+  reorderChecklist(updates);
 }
 
 /** Modal to pick an itinerary event to link to (callback gets the id, "" = none). */
@@ -1421,6 +1495,32 @@ function sectionRenamePrompt(oldName) {
 /* ============================================================
    Place details — rich info (rating, hours, website, phone)
    ============================================================ */
+/** Render checklist items linked to an event into #linked-checklist. */
+function renderLinkedChecklist(itemId) {
+  const box = document.getElementById("linked-checklist");
+  if (!box) return;
+  const linkedSections = Object.keys(trip.sectionLinks || {}).filter((sec) => trip.sectionLinks[sec] === itemId);
+  const map = new Map();
+  for (const c of trip.checklist) {
+    if (c.parentId) continue;
+    if (c.linkedItemId === itemId || linkedSections.includes(c.section || "")) map.set(c.id, c);
+  }
+  const list = [...map.values()];
+  if (!list.length) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  box.innerHTML = `
+    <label>Linked checklist <span class="lbl-soft">— ${list.filter((c) => c.done).length}/${list.length} done</span></label>
+    <ul class="linked-ck">${list.map((c) => `
+      <li class="${c.done ? "done" : ""}">
+        <input type="checkbox" data-id="${c.id}" ${c.done ? "checked" : ""} />
+        <span class="lc-text">${escapeHtml(c.text)}</span>
+        ${c.section ? `<span class="lc-sec">${escapeHtml(c.section)}</span>` : ""}
+      </li>`).join("")}</ul>`;
+  box.querySelectorAll('input[type="checkbox"]').forEach((cb) =>
+    cb.addEventListener("change", () => { toggleCheck(cb.dataset.id); renderLinkedChecklist(itemId); })
+  );
+}
+
 async function placeDetailsModal(it) {
   const loc = it.location || {};
   const title = loc.name || it.title || "Place";

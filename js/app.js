@@ -187,6 +187,26 @@ function linkSection(name, eventId) {
   renderChecklist();
   refreshOverviewIfActive();
 }
+/** Persist drag-reordered checklist (section + order per item). */
+function reorderChecklist(updates) {
+  let changed = false;
+  for (const u of updates) {
+    const c = trip.checklist.find((x) => x.id === u.id);
+    if (!c) continue;
+    if ((c.section || "") !== u.section || c.order !== u.order) {
+      c.section = u.section; c.order = u.order; syncSet("checklist", c);
+      // keep sub-items in the same section as their parent
+      for (const sub of trip.checklist) {
+        if (sub.parentId === c.id && (sub.section || "") !== u.section) { sub.section = u.section; syncSet("checklist", sub); }
+      }
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  saveTrip();
+  renderChecklist();
+  refreshOverviewIfActive();
+}
 
 /* ---------- Save indicator ---------- */
 function onTripSaved() {
