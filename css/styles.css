@@ -877,6 +877,8 @@ button.link {
 .form-row label { font-size: 12px; color: var(--muted); }
 .form-row input, .form-row select, .form-row textarea { width: 100%; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ck-allday { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); margin-bottom: 8px; cursor: pointer; }
+.ck-allday input { width: 16px; height: 16px; accent-color: var(--accent); }
 .form-grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .lbl-soft { color: var(--muted); font-weight: 400; }
 .flight-seg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; align-items: center; }

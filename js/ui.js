@@ -21,6 +21,13 @@ function splitDT(v) {
   const [d, t] = v.split("T");
   return { date: d || "", time: (t || "").slice(0, 5) };
 }
+/** Whole nights between two YYYY-MM-DD dates (0 if invalid/same day). */
+function nightsBetween(d1, d2) {
+  if (!d1 || !d2) return 0;
+  const a = new Date(d1 + "T00:00:00"), b = new Date(d2 + "T00:00:00");
+  const n = Math.round((b - a) / 86400000);
+  return n > 0 ? n : 0;
+}
 
 /** "Leave" time of a stop (drives the leg to the next stop). */
 function departOf(it) {
@@ -161,14 +168,22 @@ function timeChips(it, opts = {}) {
 
   // Hotels / events / tasks read as Check-in/out or Start/End (with dates).
   if (it.type !== "travel") {
-    const isHotel = it.type === "hotel";
-    const sIco = isHotel ? "🛎" : "🕘", eIco = isHotel ? "🚪" : "🏁";
-    const sLbl = isHotel ? "Check-in" : "Start", eLbl = isHotel ? "Check-out" : "End";
-    const overnightNT = it.endDate && it.endDate !== it.date;
     const chips = [];
-    if (it.time) chips.push(`<span class="chip">${sIco} ${s ? "" : sLbl + " "}${escapeHtml(it.time)}</span>`);
-    if (it.endTime || it.endDate) {
-      chips.push(`<span class="chip">${eIco} ${s ? "" : eLbl + " "}${overnightNT ? shortDate(it.endDate) + " " : ""}${escapeHtml(it.endTime || "")}</span>`);
+    const overnightNT = it.endDate && it.endDate !== it.date;
+    if (it.type === "hotel") {
+      if (it.time) chips.push(`<span class="chip">🛎 ${s ? "" : "Check-in "}${escapeHtml(it.time)}</span>`);
+      if (it.endTime || it.endDate) {
+        chips.push(`<span class="chip">🚪 ${s ? "" : "Check-out "}${overnightNT ? shortDate(it.endDate) + " " : ""}${escapeHtml(it.endTime || "")}</span>`);
+      }
+      const n = nightsBetween(it.date, it.endDate);
+      if (n) chips.push(`<span class="chip">🌙 ${n} night${n > 1 ? "s" : ""}</span>`);
+    } else if (it.allDay) {
+      chips.push(`<span class="chip">📅 ${s ? "all day" : "All day"}${overnightNT ? " · ends " + shortDate(it.endDate) : ""}</span>`);
+    } else {
+      if (it.time) chips.push(`<span class="chip">🕘 ${s ? "" : "Start "}${escapeHtml(it.time)}</span>`);
+      if (it.endTime || it.endDate) {
+        chips.push(`<span class="chip">🏁 ${s ? "" : "End "}${overnightNT ? shortDate(it.endDate) + " " : ""}${escapeHtml(it.endTime || "")}</span>`);
+      }
     }
     return chips;
   }
@@ -203,6 +218,7 @@ function timeChips(it, opts = {}) {
 /** Start-of-day time used to place an item within its date. */
 function sortTimeOf(it) {
   if (it.type === "travel") return it.departTime || it.time || "99:99"; // departure
+  if (it.allDay) return "00:00"; // all-day pinned to the top of the day
   return it.time || "99:99"; // start time
 }
 
@@ -442,9 +458,10 @@ function itemEditor(existing, defaults) {
       </div>
       <!-- EVENT / TASK timing (start / end) -->
       <div id="timing-event" ${initialEventTiming ? "" : "hidden"}>
+        <label class="ck-allday"><input type="checkbox" id="f-allday" ${it.allDay ? "checked" : ""} /> All day</label>
         <div class="form-grid">
-          <div class="form-row"><label>Starts</label><input id="f-start" type="datetime-local" value="${combineDT(it.date, it.time)}" /></div>
-          <div class="form-row"><label>Ends <span class="lbl-soft">— optional</span></label><input id="f-end" type="datetime-local" value="${combineDT(it.endDate, it.endTime)}" /></div>
+          <div class="form-row"><label>Starts</label><input id="f-start" type="${it.allDay ? "date" : "datetime-local"}" value="${it.allDay ? (it.date || "") : combineDT(it.date, it.time)}" /></div>
+          <div class="form-row"><label>Ends <span class="lbl-soft">— optional</span></label><input id="f-end" type="${it.allDay ? "date" : "datetime-local"}" value="${it.allDay ? (it.endDate || "") : combineDT(it.endDate, it.endTime)}" /></div>
         </div>
       </div>
       <div class="form-row">
@@ -479,6 +496,18 @@ function itemEditor(existing, defaults) {
     document.getElementById("timing-event").hidden = !(!travelTiming && chosenType !== "hotel");
     document.getElementById("flight-row").hidden = mode !== "flight";
   }
+
+  // All-day toggle for events/tasks: swap the Start/End inputs between
+  // datetime-local and date-only, preserving the date part.
+  document.getElementById("f-allday").addEventListener("change", (e) => {
+    const allDay = e.target.checked;
+    ["f-start", "f-end"].forEach((id) => {
+      const inp = document.getElementById(id);
+      const cur = inp.value;
+      if (allDay) { inp.type = "date"; inp.value = cur ? cur.split("T")[0] : ""; }
+      else { inp.type = "datetime-local"; inp.value = cur ? cur + "T09:00" : ""; }
+    });
+  });
 
   // type picker
   document.querySelectorAll(".type-opt").forEach((btn) => {
@@ -672,6 +701,7 @@ function itemEditor(existing, defaults) {
     e.preventDefault();
     const mode = document.getElementById("f-mode").value;
     const travelTiming = chosenType === "travel" || mode === "flight";
+    const allDay = document.getElementById("f-allday").checked;
 
     // Timing fields depend on which group is active.
     let date = "", time = "", departTime = "", arriveDate = "", endDate = "", endTime = "";
@@ -684,6 +714,9 @@ function itemEditor(existing, defaults) {
       const ci = splitDT(document.getElementById("f-checkin").value);
       const co = splitDT(document.getElementById("f-checkout").value);
       date = ci.date; time = ci.time; endDate = co.date; endTime = co.time;
+    } else if (allDay) {
+      date = document.getElementById("f-start").value; // date-only
+      endDate = document.getElementById("f-end").value;
     } else {
       const s = splitDT(document.getElementById("f-start").value);
       const en = splitDT(document.getElementById("f-end").value);
@@ -695,6 +728,7 @@ function itemEditor(existing, defaults) {
       type: chosenType,
       title: document.getElementById("f-title").value.trim(),
       date, time, departTime, arriveDate, endDate, endTime,
+      allDay: !travelTiming && chosenType !== "hotel" && allDay,
       stay: it.stay || 0,
       tz: fetchedTz,
       legMode: mode,
