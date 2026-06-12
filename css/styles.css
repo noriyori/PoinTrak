@@ -308,7 +308,9 @@ button.link {
 .day-chip.day-pill.active .dc-pill { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* Overview quick actions (New activity / Map / Suggest) */
-.ov-quick { display: flex; gap: 14px; margin-top: 16px; flex-wrap: wrap; align-items: center; }
+/* Align to the top so the ＋ circle and the Explore-city pill (both 48px tall)
+   share a centerline; the "New" caption hangs below the circle. */
+.ov-quick { display: flex; gap: 14px; margin-top: 16px; flex-wrap: wrap; align-items: flex-start; }
 /* Rounded-rectangle quick action (e.g. Explore city) */
 .ov-qpill {
   display: inline-flex; align-items: center; gap: 8px;
