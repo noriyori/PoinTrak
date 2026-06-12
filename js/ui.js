@@ -114,6 +114,15 @@ function appleMapsUrl(loc) {
   return null;
 }
 
+/** A 📍 location chip that opens the place in Apple Maps when tapped. */
+function locChip(loc) {
+  if (!loc || !loc.name) return "";
+  const am = appleMapsUrl(loc);
+  return am
+    ? `<a class="chip chip-link" href="${am}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Open in Apple Maps">📍 ${escapeHtml(loc.name)} ↗</a>`
+    : `<span class="chip">📍 ${escapeHtml(loc.name)}</span>`;
+}
+
 function el(html) {
   const t = document.createElement("template");
   t.innerHTML = html.trim();
@@ -1026,14 +1035,7 @@ function renderTimeline() {
     }
     dayItems.forEach((it, idx) => {
       const chips = timeChips(it);
-      if (it.location?.name) {
-        const am = appleMapsUrl(it.location);
-        chips.push(
-          am
-            ? `<a class="chip chip-link" href="${am}" target="_blank" rel="noopener" title="Open in Apple Maps">📍 ${escapeHtml(it.location.name)} ↗</a>`
-            : `<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`
-        );
-      }
+      if (it.location?.name) chips.push(locChip(it.location));
       if (it.link) chips.push(linkChip(it.link));
       if (it.by) chips.push(`<span class="chip chip-author">added by ${avatar(it.by, true)}</span>`);
 
@@ -1961,7 +1963,7 @@ function renderOverview() {
   } else {
     dayItems.forEach((it, i) => {
       const chips = timeChips(it, { short: true });
-      if (it.location?.name) chips.push(`<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`);
+      if (it.location?.name) chips.push(locChip(it.location));
       if (it.link) chips.push(linkChip(it.link, { short: true }));
       if (it.by) chips.push(`<span class="chip chip-author">${avatar(it.by, false)}</span>`);
       const past = isPastItem(it);
