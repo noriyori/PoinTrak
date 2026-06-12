@@ -163,6 +163,29 @@ function shortDate(d) {
 }
 
 /** Chips describing an item's arrival/departure (with dates), stay + flight. */
+/** Normalize a user-typed URL: add https:// if no scheme, blank if empty. */
+function normUrl(u) {
+  u = (u || "").trim();
+  if (!u) return "";
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) u = "https://" + u;
+  return u;
+}
+/** Short host label for a link chip (drops www., trailing path). */
+function linkHost(u) {
+  try {
+    return new URL(normUrl(u)).hostname.replace(/^www\./, "");
+  } catch (_) {
+    return "link";
+  }
+}
+/** A tappable 🌐 chip linking out to a URL. */
+function linkChip(u, opts = {}) {
+  const url = normUrl(u);
+  if (!url) return "";
+  const label = opts.short ? linkHost(url) : linkHost(url);
+  return `<a class="chip chip-link" href="${escapeHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${escapeHtml(url)}">🌐 ${escapeHtml(label)}</a>`;
+}
+
 function timeChips(it, opts = {}) {
   const s = opts.short;
 
@@ -475,6 +498,10 @@ function itemEditor(existing, defaults) {
         <label>Notes</label>
         <textarea id="f-notes" rows="2" placeholder="Confirmation #, who's responsible, etc.">${escapeHtml(it.notes || "")}</textarea>
       </div>
+      <div class="form-row">
+        <label>Link <span class="lbl-soft">— optional URL</span></label>
+        <input id="f-link" type="url" inputmode="url" placeholder="https://… (booking, ticket, website)" value="${escapeHtml(it.link || "")}" />
+      </div>
       <div id="linked-checklist"></div>
       <div class="modal-actions">
         ${existing ? '<button type="button" class="ghost" id="f-delete">Delete</button>' : ""}
@@ -736,6 +763,7 @@ function itemEditor(existing, defaults) {
       tz: fetchedTz,
       legMode: mode,
       notes: document.getElementById("f-notes").value.trim(),
+      link: normUrl(document.getElementById("f-link").value.trim()),
       location: resolvedLoc,
       done: it.done || false,
       by: it.by || getMe(),
@@ -1006,6 +1034,7 @@ function renderTimeline() {
             : `<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`
         );
       }
+      if (it.link) chips.push(linkChip(it.link));
       if (it.by) chips.push(`<span class="chip chip-author">added by ${avatar(it.by, true)}</span>`);
 
       const past = isPastItem(it);
@@ -1696,6 +1725,10 @@ function tripSettings() {
       <div class="form-row"><label>To</label><input id="s-end" type="date" value="${trip.end || ""}" /></div>
     </div>
     <div class="form-row">
+      <label>Trip link <span class="lbl-soft">— optional URL</span></label>
+      <input id="s-link" type="url" inputmode="url" value="${escapeHtml(trip.link || "")}" placeholder="https://… (shared doc, booking, itinerary)" />
+    </div>
+    <div class="form-row">
       <label>Who's planning</label>
       <div class="settings-roster">${roster}</div>
       <div class="settings-me">You: ${me ? avatar(me, true) : "—"} <button class="link" id="s-identity">change</button></div>
@@ -1730,6 +1763,11 @@ function tripSettings() {
   });
   document.getElementById("s-end").addEventListener("change", (e) => {
     trip.end = e.target.value; saveTrip(); syncMeta({ end: trip.end });
+  });
+  const linkEl = document.getElementById("s-link");
+  linkEl.addEventListener("change", () => {
+    trip.link = normUrl(linkEl.value.trim()); linkEl.value = trip.link;
+    saveTrip(); syncMeta({ link: trip.link }); refreshOverviewIfActive();
   });
   document.getElementById("s-identity").addEventListener("click", () => identityPicker());
   document.getElementById("s-share").addEventListener("click", () => shareModal());
@@ -1877,6 +1915,7 @@ function renderOverview() {
         <div>
           <div class="ov-hero-title">${escapeHtml(trip.name || "Your trip")}</div>
           <div class="ov-hero-dates">${escapeHtml(datesLine)}</div>
+          ${trip.link ? `<div class="ov-hero-link">${linkChip(trip.link)}</div>` : ""}
         </div>
         ${countdown ? `<div class="ov-countdown">${countdown}</div>` : ""}
       </div>
@@ -1923,6 +1962,7 @@ function renderOverview() {
     dayItems.forEach((it, i) => {
       const chips = timeChips(it, { short: true });
       if (it.location?.name) chips.push(`<span class="chip">📍 ${escapeHtml(it.location.name)}</span>`);
+      if (it.link) chips.push(linkChip(it.link, { short: true }));
       if (it.by) chips.push(`<span class="chip chip-author">${avatar(it.by, false)}</span>`);
       const past = isPastItem(it);
       const isNext = it.id === nextId;
