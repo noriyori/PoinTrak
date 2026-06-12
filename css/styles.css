@@ -547,6 +547,10 @@ button.link {
 }
 .tl-meta .chip-link { color: var(--accent); text-decoration: none; }
 .tl-meta .chip-link:hover { border-color: var(--accent); }
+/* tappable link chips (event/trip URLs) work in every chip context */
+a.chip-link { color: var(--accent); text-decoration: none; cursor: pointer; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.chip-link:hover { border-color: var(--accent); }
+.ov-hero-link { margin-top: 6px; }
 .tl-notes { margin: 6px 0 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
 
 /* Auto-inserted travel leg between two consecutive located stops */

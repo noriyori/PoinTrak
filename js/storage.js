@@ -17,6 +17,7 @@ function blankTrip() {
     name: "",
     start: "",
     end: "",
+    link: "",           // optional trip-level URL (shared doc, booking, etc.)
     collaborators: [],
     items: [],          // timeline: hotels, events, travel legs, tasks
     suggestions: [],    // proposed activities
@@ -99,6 +100,7 @@ function mergeTrips(a, b) {
   out.name = newer.name || a.name || b.name;
   out.start = newer.start || a.start || b.start;
   out.end = newer.end || a.end || b.end;
+  out.link = newer.link || a.link || b.link;
   out.collaborators = Array.from(new Set([...(a.collaborators || []), ...(b.collaborators || [])]));
 
   out.items = mergeById(a.items, b.items);
