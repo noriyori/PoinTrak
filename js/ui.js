@@ -2048,7 +2048,7 @@ function renderOverview() {
       const rows = collapsed
         ? ""
         : open.length
-        ? `<ul class="ov-list">${open.slice(0, 8).map((c) => `<li class="ov-li"><span class="ov-ico">⬜</span><span class="ov-li-main"><span class="ov-li-title">${escapeHtml(c.text)}</span></span>${c.assignee ? avatar(c.assignee, false) : ""}</li>`).join("")}</ul>`
+        ? `<ul class="ov-list">${open.slice(0, 8).map((c) => `<li class="ov-li"><button type="button" class="ov-ck" data-ck="${c.id}" title="Mark done" aria-label="Mark done">⬜</button><span class="ov-li-main"><span class="ov-li-title">${escapeHtml(c.text)}</span></span>${c.assignee ? avatar(c.assignee, false) : ""}</li>`).join("")}</ul>`
         : `<p class="empty-hint" style="margin:4px 0 0">All done 🎉</p>`;
       return `<div class="ov-sec ${collapsed ? "collapsed" : ""}">
         <button type="button" class="ov-sec-head" data-sec="${escapeHtml(section)}">
@@ -2115,6 +2115,12 @@ function renderOverview() {
     b.addEventListener("click", (e) => {
       e.stopPropagation();
       suggestionDayPicker(b.dataset.suggAdd);
+    })
+  );
+  wrap.querySelectorAll(".ov-ck").forEach((b) =>
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleCheck(b.dataset.ck); // saves, syncs, and re-renders (incl. overview)
     })
   );
   wrap.querySelectorAll(".ov-sec-head").forEach((b) =>
