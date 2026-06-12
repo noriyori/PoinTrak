@@ -1044,4 +1044,12 @@ a.chip-link:hover { border-color: var(--accent); }
     padding-right: max(10px, env(safe-area-inset-right));
   }
   .statusbar { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  /* Keep modals (and their top-right close button) clear of the status bar. */
+  .modal {
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  .modal-card {
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px);
+  }
 }
