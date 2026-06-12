@@ -308,7 +308,16 @@ button.link {
 .day-chip.day-pill.active .dc-pill { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* Overview quick actions (New activity / Map / Suggest) */
-.ov-quick { display: flex; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
+.ov-quick { display: flex; gap: 14px; margin-top: 16px; flex-wrap: wrap; align-items: center; }
+/* Rounded-rectangle quick action (e.g. Explore city) */
+.ov-qpill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0 18px; height: 48px; border-radius: 24px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  font: inherit; font-weight: 600; font-size: 14px; cursor: pointer;
+}
+.ov-qpill:hover { border-color: var(--accent); background: var(--panel); }
+.ov-qpill-ico { font-size: 20px; }
 .ov-qbtn {
   display: inline-flex; flex-direction: column; align-items: center; gap: 6px;
   background: none; border: none; color: var(--muted); font: inherit; cursor: pointer;

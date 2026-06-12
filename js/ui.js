@@ -1932,10 +1932,7 @@ function renderOverview() {
       </div>
       <div class="ov-quick">
         <button type="button" class="ov-qbtn" data-q="add"><span class="ov-qcirc">＋</span><span class="ov-qlbl">New</span></button>
-        <button type="button" class="ov-qbtn" data-q="flight"><span class="ov-qcirc">✈️</span><span class="ov-qlbl">Flight</span></button>
-        <button type="button" class="ov-qbtn" data-q="city"><span class="ov-qcirc">🏙</span><span class="ov-qlbl">City</span></button>
-        <button type="button" class="ov-qbtn" data-q="map"><span class="ov-qcirc">🗺</span><span class="ov-qlbl">Map</span></button>
-        <button type="button" class="ov-qbtn" data-q="suggest"><span class="ov-qcirc">💡</span><span class="ov-qlbl">Suggest</span></button>
+        <button type="button" class="ov-qpill" data-q="city"><span class="ov-qpill-ico">🏙</span> Explore city</button>
       </div>
       ${
         nextUp
@@ -2100,14 +2097,11 @@ function renderOverview() {
   wrap.querySelectorAll(".ov-go").forEach((b) =>
     b.addEventListener("click", () => switchTab(b.dataset.go))
   );
-  wrap.querySelectorAll(".ov-qbtn").forEach((b) =>
+  wrap.querySelectorAll(".ov-qbtn, .ov-qpill").forEach((b) =>
     b.addEventListener("click", () => {
       const q = b.dataset.q;
       if (q === "add") itemEditor(null, addDefaults());
-      else if (q === "flight") itemEditor(null, { ...(addDefaults() || {}), type: "travel", legMode: "flight" });
       else if (q === "city") cityVisitModal();
-      else if (q === "map") switchTab("map");
-      else if (q === "suggest") suggestionEditor();
     })
   );
   wrap.querySelectorAll(".ov-add").forEach((b) =>
