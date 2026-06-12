@@ -551,6 +551,9 @@ button.link {
 a.chip-link { color: var(--accent); text-decoration: none; cursor: pointer; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.chip-link:hover { border-color: var(--accent); }
 .ov-hero-link { margin-top: 6px; }
+/* inline "📍 place" link used in suggestion subtitles */
+.loc-inline { color: var(--accent); text-decoration: none; }
+.loc-inline:hover { text-decoration: underline; }
 .tl-notes { margin: 6px 0 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
 
 /* Auto-inserted travel leg between two consecutive located stops */

@@ -123,6 +123,15 @@ function locChip(loc) {
     : `<span class="chip">📍 ${escapeHtml(loc.name)}</span>`;
 }
 
+/** Inline "📍 place" text that opens Apple Maps (for subtitles, not a chip). */
+function locInline(loc) {
+  if (!loc || !loc.name) return "";
+  const am = appleMapsUrl(loc);
+  return am
+    ? `<a class="loc-inline" href="${am}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Open in Apple Maps">📍 ${escapeHtml(loc.name)} ↗</a>`
+    : `📍 ${escapeHtml(loc.name)}`;
+}
+
 function el(html) {
   const t = document.createElement("template");
   t.innerHTML = html.trim();
@@ -1312,7 +1321,7 @@ function renderSuggestions() {
     const card = el(`
       <div class="card ${s.accepted ? "accepted" : ""}">
         <h3>${escapeHtml(s.title)}</h3>
-        <div class="by">${avatar(s.by || "someone", true)} <span class="by-lbl">suggested</span>${s.location?.name ? " · 📍 " + escapeHtml(s.location.name) : ""}</div>
+        <div class="by">${avatar(s.by || "someone", true)} <span class="by-lbl">suggested</span>${s.location?.name ? " · " + locInline(s.location) : ""}</div>
         ${s.notes ? `<div class="notes">${escapeHtml(s.notes)}</div>` : ""}
         <div class="card-foot">
           <button class="vote">👍 ${s.votes || 0}</button>
@@ -2009,7 +2018,7 @@ function renderOverview() {
                   <span class="ov-vote">👍 ${s.votes || 0}</span>
                   <span class="ov-li-main">
                     <span class="ov-li-title">${escapeHtml(s.title)}</span>
-                    <span class="ov-li-sub">by ${escapeHtml(s.by || "someone")}${s.location?.name ? " · 📍 " + escapeHtml(s.location.name) : ""}</span>
+                    <span class="ov-li-sub">by ${escapeHtml(s.by || "someone")}${s.location?.name ? " · " + locInline(s.location) : ""}</span>
                   </span>
                   <button class="ov-sugg-add" data-sugg-add="${s.id}" title="Add to a day">＋</button>
                 </li>`
