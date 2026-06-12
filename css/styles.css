@@ -1027,6 +1027,12 @@ a.chip-link:hover { border-color: var(--accent); }
 }
 /* Respect the iPhone notch / home-indicator safe areas */
 @supports (padding: env(safe-area-inset-left)) {
-  .topbar { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+  /* Clear the status bar / notch so the header isn't cut off in the
+     installed web app (apple-mobile-web-app status bar is translucent). */
+  .topbar {
+    padding-top: calc(10px + env(safe-area-inset-top));
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+  }
   .statusbar { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 }
