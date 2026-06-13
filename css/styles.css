@@ -1,25 +1,27 @@
 :root {
-  --bg: #0e1622;        /* page background (dark) */
-  --bg-soft: #18222f;   /* inputs, subtle fills */
-  --panel: #1b2737;     /* cards */
-  --panel-2: #243349;   /* selected / hover fills */
-  --line: #2d3c52;      /* borders */
-  --text: #eaf0f8;      /* primary text */
-  --muted: #93a4bd;     /* secondary text */
-  --accent: #3b82f6;    /* primary blue */
-  --accent-2: #34d399;  /* green */
-  --warn: #fbbf24;
-  --danger: #f87171;
+  /* Apple-style dark palette: neutral near-blacks + vibrant system colors */
+  --bg: #0b0d10;        /* page background */
+  --bg-soft: #16191f;   /* inputs, subtle fills */
+  --panel: #15181d;     /* cards */
+  --panel-2: #20242c;   /* selected / hover fills */
+  --line: rgba(255, 255, 255, 0.09); /* hairline separators */
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --text: #f5f7fa;      /* primary text */
+  --muted: #98a2b0;     /* secondary text */
+  --accent: #0a84ff;    /* Apple system blue */
+  --accent-2: #30d158;  /* Apple system green */
+  --warn: #ffd60a;
+  --danger: #ff453a;
   --on-accent: #ffffff; /* text on accent-colored buttons */
-  --radius: 18px;       /* rounded containers */
+  --radius: 16px;       /* rounded containers */
   --radius-sm: 12px;
-  --shadow: 0 10px 34px rgba(0, 0, 0, 0.40);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
 
-  /* item type colors */
-  --t-hotel: #a78bfa;
-  --t-event: #60a5fa;
-  --t-travel: #34d399;
-  --t-task: #fbbf24;
+  /* item type colors (Apple system palette) */
+  --t-hotel: #bf5af2;   /* purple */
+  --t-event: #0a84ff;   /* blue */
+  --t-travel: #30d158;  /* green */
+  --t-task: #ff9f0a;    /* orange */
 }
 
 * { box-sizing: border-box; }
@@ -1070,3 +1072,75 @@ a.chip-link:hover { border-color: var(--accent); }
     max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px);
   }
 }
+
+/* ============================================================
+   Icon system + Apple-style refinements
+   ============================================================ */
+.ico { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; flex: none; }
+
+/* Colored, rounded category tiles (Wanderlog/Apple cue) for item icons */
+.tl-icon, .dv-ico {
+  display: grid; place-items: center; flex: none; padding: 0; line-height: 0;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--tile, var(--accent)) 15%, transparent);
+  color: var(--tile, var(--accent));
+}
+.tl-icon { width: 40px; height: 40px; font-size: 21px; }
+.dv-ico  { width: 32px; height: 32px; font-size: 17px; align-self: center; }
+.tl-item[data-type="hotel"],  .dv-item[data-type="hotel"]  { --tile: var(--t-hotel); }
+.tl-item[data-type="event"],  .dv-item[data-type="event"]  { --tile: var(--t-event); }
+.tl-item[data-type="travel"], .dv-item[data-type="travel"] { --tile: var(--t-travel); }
+.tl-item[data-type="task"],   .dv-item[data-type="task"]   { --tile: var(--t-task); }
+/* Drop the colored left bar — the tile now carries the category color */
+.tl-item, .dv-item { border-left: 1px solid var(--line) !important; }
+
+/* Chips read as icon + label */
+.chip { display: inline-flex; align-items: center; gap: 5px; }
+.chip .ico { font-size: 13px; color: var(--muted); }
+.chip-link .ico, .loc-inline .ico { color: inherit; }
+.loc-inline { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Tabs, header, settings */
+.tab .tab-ico { display: inline-flex; }
+.tab .tab-ico svg { width: 1em; height: 1em; display: block; }
+.tab .tab-ico { font-size: 18px; }
+.brand-logo { display: inline-flex; color: var(--accent); }
+.brand-logo svg { width: 24px; height: 24px; }
+.lock-logo { display: inline-flex; justify-content: center; color: var(--accent); }
+.lock-logo svg { width: 46px; height: 46px; }
+.btn-settings .ico { font-size: 17px; }
+
+/* Overview accents */
+.ov-card-head h3 { display: inline-flex; align-items: center; gap: 8px; }
+.ov-card-head h3 .ico { font-size: 18px; color: var(--muted); }
+.ov-nextup-ic { color: var(--accent); }
+.ov-nextup-ic .ico { font-size: 15px; }
+.dv-arrow .ico { font-size: 15px; }
+.ml-row .ico { font-size: 15px; vertical-align: -0.18em; }
+.leg-pill .ico { font-size: 14px; vertical-align: -0.12em; }
+
+/* Apple-style surface & control polish */
+.tl-title, .dv-title, .card h3, .ov-hero-title { letter-spacing: -0.01em; }
+.primary {
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+input, select, textarea { border-radius: 10px; }
+.tl-item, .card, .ov-card { transition: border-color .15s ease, transform .15s ease; }
+.tl-item:active { transform: scale(0.995); }
+.tl-meta .chip, .dv-meta .chip {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-color: var(--line);
+}
+
+/* Native checkboxes adopt the system accent (Apple cue) */
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+.ov-ck { color: var(--muted); }
+.ov-ck:hover { color: var(--accent); }
+.ov-ck .ico { font-size: 19px; }
+
+/* Type picker icons (Add/Edit item) */
+.type-opt-ic { display: block; margin-bottom: 6px; color: var(--muted); }
+.type-opt-ic .ico { font-size: 24px; display: inline-block; margin: 0; }
+.type-opt.sel .type-opt-ic { color: var(--accent); }
