@@ -687,6 +687,13 @@ a.chip-link:hover { border-color: var(--accent); }
 }
 .card.accepted { opacity: 0.6; }
 .card h3 { margin: 0; font-size: 15px; }
+/* Tappable header region of a suggestion card (photo + title + notes) */
+.sugg-tap { display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
+.card-thumb { width: 100%; height: 120px; border-radius: 12px; }
+/* Banner photo at the top of the suggestion details popup */
+.sg-photo { display: none; width: 100%; height: 170px; border-radius: 12px; background-size: cover; background-position: center; margin-bottom: 12px; }
+.sg-photo.has-photo { display: block; }
+.sg-votes { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
 .card .by { color: var(--muted); font-size: 12px; }
 .card .notes { color: var(--muted); font-size: 13px; white-space: pre-wrap; }
 .card-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; }
