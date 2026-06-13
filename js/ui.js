@@ -41,6 +41,19 @@ function departOf(it) {
   return null;
 }
 
+/**
+ * When you set out from a stop toward the NEXT one. For a travel item this is
+ * its ARRIVAL time (it.time) — you reach the destination, then continue — not
+ * its departure. For everything else it matches departOf (end time, etc.).
+ */
+function onwardDepartOf(it) {
+  if (it.type === "travel") {
+    if (it.time) return it.stay ? shiftTime(it.time, it.stay).time : it.time;
+    return it.departTime || null;
+  }
+  return departOf(it);
+}
+
 /** Flight segments for an item (supports connections); migrates legacy single-flight fields. */
 function flightSegments(it) {
   if (Array.isArray(it.flights) && it.flights.length) return it.flights;
@@ -1240,8 +1253,8 @@ function buildLegPill(cur, next, minutes, km, estimated, m, legs) {
 
   let timing = "";
   let warn = false;
-  // When you leave the current stop (end/check-out/departure or arrival+stay).
-  const depart = departOf(cur);
+  // When you leave the current stop (arrival for travel, else end/check-out).
+  const depart = onwardDepartOf(cur);
   if (depart) {
     const leaveMin = toMin(depart);
     const arriveMin = leaveMin + minutes;
