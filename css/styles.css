@@ -460,22 +460,27 @@ button.link {
   white-space: nowrap;
 }
 .ov-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin: 16px 0 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 12px 0 10px;
 }
 .ov-stat {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px;
-  text-align: center;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  text-align: left;
 }
-.ov-stat .num { display: block; font-size: 22px; font-weight: 800; color: var(--accent); }
-.ov-stat .lbl { font-size: 12px; color: var(--muted); }
-.ov-crew { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ov-crew-list { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+.ov-stat .num { display: inline; font-size: 15px; font-weight: 700; color: var(--accent); }
+.ov-stat .lbl { font-size: 12.5px; color: var(--muted); }
+.ov-crew { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ov-crew-list { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.ov-crew .avatar .dot { width: 20px; height: 20px; font-size: 10px; }
+.ov-crew .avatar .nm { font-size: 12.5px; }
 
 .ov-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .ov-li {
@@ -1046,8 +1051,8 @@ a.chip-link:hover { border-color: var(--accent); }
   .topbar { gap: 10px; padding: 8px 12px; }
   .content { padding: 14px 12px 88px; } /* leave room for the bottom nav */
   .brand { flex: 1; min-width: 0; }
-  .ov-stats { gap: 8px; }
-  .ov-stat { padding: 10px 6px; }
+  .ov-stats { gap: 4px 14px; }
+  .ov-stat { padding: 0; }
 
   /* Tabs become an app-style bottom navigation bar */
   .tabs {

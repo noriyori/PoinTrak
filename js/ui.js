@@ -1060,12 +1060,16 @@ function renderTimeline() {
     }
     dayItems.forEach((it, idx) => {
       const chips = timeChips(it);
-      // Travel items show their own estimated journey time (origin = the
-      // previous located stop, even on an earlier day — e.g. a train that
-      // opens a new day). Flights show their segments instead.
+      // A travel item shows its own estimated journey time ONLY when there's no
+      // incoming leg pill (e.g. it opens a new day, like a train from yesterday).
+      // When the previous same-day stop feeds into it, that leg pill carries the
+      // timing instead, so we skip the chip to avoid duplication.
       if (it.type === "travel" && it.legMode !== "flight" && it.location?.lat != null) {
-        const origin = prevLocatedItem(items, it.id);
-        if (origin) chips.push(durChip(origin.id, it.id, it.legMode || "car"));
+        const prevSameDay = idx > 0 ? dayItems[idx - 1] : null;
+        if (!(prevSameDay && legBetween(prevSameDay, it))) {
+          const origin = prevLocatedItem(items, it.id);
+          if (origin) chips.push(durChip(origin.id, it.id, it.legMode || "car"));
+        }
       }
       if (it.location?.name) chips.push(locChip(it.location));
       if (it.link) chips.push(linkChip(it.link));
@@ -1340,7 +1344,7 @@ function sameSpot(a, b) {
 
 /** Should a leg/timing pill be shown from cur → next? */
 function legBetween(cur, next) {
-  if (!next || next.type === "travel") return false; // travel items carry their own chip
+  if (!next) return false;
   const bothLoc = cur.location?.lat != null && next.location?.lat != null;
   if (bothLoc && !sameSpot(cur.location, next.location)) return true; // real travel leg
   return !!(onwardDepartOf(cur) && !next.allDay && next.time);        // timing-only gap
@@ -2145,8 +2149,11 @@ function renderOverview() {
     dayItems.forEach((it, i) => {
       const chips = timeChips(it, { short: true });
       if (it.type === "travel" && it.legMode !== "flight" && it.location?.lat != null) {
-        const origin = prevLocatedItem(items, it.id);
-        if (origin) chips.push(durChip(origin.id, it.id, it.legMode || "car"));
+        const prevSameDay = i > 0 ? dayItems[i - 1] : null;
+        if (!(prevSameDay && legBetween(prevSameDay, it))) {
+          const origin = prevLocatedItem(items, it.id);
+          if (origin) chips.push(durChip(origin.id, it.id, it.legMode || "car"));
+        }
       }
       if (it.location?.name) chips.push(locChip(it.location));
       if (it.link) chips.push(linkChip(it.link, { short: true }));
