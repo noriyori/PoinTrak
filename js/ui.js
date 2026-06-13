@@ -1320,9 +1320,12 @@ function renderSuggestions() {
       : "";
     const card = el(`
       <div class="card ${s.accepted ? "accepted" : ""}">
-        <h3>${escapeHtml(s.title)}</h3>
-        <div class="by">${avatar(s.by || "someone", true)} <span class="by-lbl">suggested</span>${s.location?.name ? " · " + locInline(s.location) : ""}</div>
-        ${s.notes ? `<div class="notes">${escapeHtml(s.notes)}</div>` : ""}
+        <div class="sugg-tap" title="Tap for full details">
+          ${thumbHtml(s, "card-thumb")}
+          <h3>${escapeHtml(s.title)}</h3>
+          <div class="by">${avatar(s.by || "someone", true)} <span class="by-lbl">suggested</span>${s.location?.name ? " · " + locInline(s.location) : ""}</div>
+          ${s.notes ? `<div class="notes">${escapeHtml(s.notes)}</div>` : ""}
+        </div>
         <div class="card-foot">
           <button class="vote">👍 ${s.votes || 0}</button>
           ${voterAvatars}
@@ -1333,6 +1336,10 @@ function renderSuggestions() {
         </div>
       </div>
     `);
+    card.querySelector(".sugg-tap").addEventListener("click", (e) => {
+      if (e.target.closest("a")) return; // let the Apple Maps link work
+      suggestionModal(s.id);
+    });
     card.querySelector(".vote").addEventListener("click", () => voteSuggestion(s.id));
     card.querySelector(".cmt-btn").addEventListener("click", () => commentsModal("suggestions", s.id));
     if (!s.accepted) {
@@ -1340,6 +1347,79 @@ function renderSuggestions() {
       card.querySelector(".del").addEventListener("click", () => removeSuggestion(s.id));
     }
     wrap.appendChild(card);
+  }
+  loadThumbs(wrap); // lazy-fill suggestion photos (Wikipedia → Google)
+}
+
+/* Suggestion details popup — full info + place details + actions. */
+async function suggestionModal(id) {
+  const s = trip.suggestions.find((x) => x.id === id);
+  if (!s) return;
+  const loc = s.location || null;
+  const photo = loc?.photo || "";
+  const votesLine = (s) => {
+    const voters = (s.voters || []).filter(Boolean);
+    const av = voters.length ? voters.map((v) => avatar(v, false)).join("") : "";
+    return `👍 ${s.votes || 0}${av ? " " + av : ""}`;
+  };
+  openModal(`
+    <div id="sg-photo" class="sg-photo ${photo ? "has-photo" : ""}" ${photo ? `style="background-image:url('${escapeHtml(photo)}')"` : ""} data-q="${escapeHtml(loc?.name || "")}"></div>
+    <h2>${escapeHtml(s.title)}</h2>
+    <div class="by" style="margin:-4px 0 8px">${avatar(s.by || "someone", true)} <span class="by-lbl">suggested</span>${loc?.name ? " · " + locInline(loc) : ""}</div>
+    ${s.notes ? `<p class="pd-summary">${escapeHtml(s.notes)}</p>` : ""}
+    <div class="sg-votes" id="sg-votes">${votesLine(s)}</div>
+    <div id="sg-details">${loc?.name && googlePlacesEnabled() ? '<p class="empty-hint">Loading place details…</p>' : ""}</div>
+    <div class="modal-actions">
+      <button type="button" class="mini" id="sg-vote">👍 Vote</button>
+      <button type="button" class="mini" id="sg-cmt">💬 Comments</button>
+      ${s.accepted
+        ? '<span class="by">✓ on timeline</span>'
+        : '<button type="button" class="mini accept" id="sg-add">＋ Add to day</button><button type="button" class="mini" id="sg-del">Remove</button>'}
+      <span class="spacer"></span>
+      <button type="button" class="primary" id="sg-close">Done</button>
+    </div>
+  `);
+  document.getElementById("sg-close").addEventListener("click", closeModal);
+  document.getElementById("sg-vote").addEventListener("click", () => {
+    voteSuggestion(s.id);
+    const v = document.getElementById("sg-votes");
+    if (v) v.innerHTML = votesLine(trip.suggestions.find((x) => x.id === id) || s);
+  });
+  document.getElementById("sg-cmt").addEventListener("click", () => commentsModal("suggestions", s.id));
+  if (!s.accepted) {
+    document.getElementById("sg-add").addEventListener("click", () => suggestionDayPicker(s.id));
+    document.getElementById("sg-del").addEventListener("click", () => { removeSuggestion(s.id); closeModal(); });
+  }
+
+  // Lazy-fill the banner photo if we don't already have one.
+  const ph = document.getElementById("sg-photo");
+  if (ph && !photo && loc?.name) {
+    let url = await fetchPlacePhoto(loc.name);
+    if (!url && googlePlacesEnabled()) {
+      const r = await googlePlaceDetails(loc.name);
+      if (r && r.photo) url = r.photo;
+    }
+    if (url && ph.isConnected) { ph.style.backgroundImage = `url("${url}")`; ph.classList.add("has-photo"); }
+  }
+
+  // Rich place details (rating, hours, website…) when available.
+  if (loc?.name && googlePlacesEnabled()) {
+    const r = await googlePlaceDetails([loc.name, loc.label].filter(Boolean).join(" "));
+    const box = document.getElementById("sg-details");
+    if (!box) return;
+    if (r.error) { box.innerHTML = ""; return; }
+    const hours = r.hours.length
+      ? `<details class="pd-hours"><summary>Opening hours</summary><ul>${r.hours.map((h) => `<li>${escapeHtml(h)}</li>`).join("")}</ul></details>`
+      : "";
+    box.innerHTML = `
+      ${r.rating ? `<div class="pd-rating">★ ${r.rating} <span class="muted">(${r.ratingCount})</span></div>` : ""}
+      ${r.summary ? `<p class="pd-summary">${escapeHtml(r.summary)}</p>` : ""}
+      ${r.address ? `<div class="pd-line">📍 ${escapeHtml(r.address)}</div>` : ""}
+      ${r.phone ? `<div class="pd-line">📞 <a href="tel:${escapeHtml(r.phone.replace(/\s+/g, ""))}">${escapeHtml(r.phone)}</a></div>` : ""}
+      ${r.website ? `<div class="pd-line">🔗 <a href="${escapeHtml(r.website)}" target="_blank" rel="noopener">Website ↗</a></div>` : ""}
+      ${r.mapsUri ? `<div class="pd-line">🗺 <a href="${escapeHtml(r.mapsUri)}" target="_blank" rel="noopener">Open in Google Maps ↗</a></div>` : ""}
+      ${hours}
+    `;
   }
 }
 
