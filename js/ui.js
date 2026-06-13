@@ -1104,10 +1104,10 @@ function renderTimeline() {
       wireDragReorder(card, group);
       group.appendChild(card);
 
-      // Auto travel leg to the next located stop on the same day. Travel items
-      // carry their own duration chip, so don't insert a leg INTO them.
+      // Travel time, or a "time to leave" gap, to the next stop on the same day.
+      // Travel items carry their own duration chip, so don't insert a leg INTO them.
       const next = dayItems[idx + 1];
-      if (next && it.location?.lat != null && next.location?.lat != null && next.type !== "travel") {
+      if (legBetween(it, next)) {
         group.appendChild(
           el(`<div class="tl-leg leg-slot" data-leg-from="${it.id}" data-leg-to="${next.id}"></div>`)
         );
@@ -1296,6 +1296,15 @@ async function annotateLegSlots(channel, root, items) {
     const next = byId[node.dataset.legTo];
     if (!cur || !next) continue;
 
+    // No computable distance (next has no location, or it's the same spot):
+    // show a timing "gap / time to leave" pill instead of a travel estimate.
+    const bothLoc = cur.location?.lat != null && next.location?.lat != null;
+    if (!bothLoc || sameSpot(cur.location, next.location)) {
+      const g = gapPill(cur, next);
+      if (g) node.innerHTML = g; else node.remove();
+      continue;
+    }
+
     // The mode belongs to the ARRIVING event (how you get to `next`).
     const mode = next.legMode || "car";
     const m = TRAVEL_MODES[mode] || TRAVEL_MODES.car;
@@ -1321,6 +1330,31 @@ function flightLegPill(it) {
     .map((g) => [g.no, [g.from, g.to].filter(Boolean).join("→")].filter(Boolean).join(" "))
     .join(", ");
   return `<span class="leg-pill leg-ok">${icon("plane")} ${escapeHtml(route || "Flight")} to ${escapeHtml(it.title)}</span>`;
+}
+
+/** Two locations resolve to the same spot (within ~11 m). */
+function sameSpot(a, b) {
+  if (!a || !b || a.lat == null || b.lat == null) return false;
+  return a.lat.toFixed(4) === b.lat.toFixed(4) && a.lng.toFixed(4) === b.lng.toFixed(4);
+}
+
+/** Should a leg/timing pill be shown from cur → next? */
+function legBetween(cur, next) {
+  if (!next || next.type === "travel") return false; // travel items carry their own chip
+  const bothLoc = cur.location?.lat != null && next.location?.lat != null;
+  if (bothLoc && !sameSpot(cur.location, next.location)) return true; // real travel leg
+  return !!(onwardDepartOf(cur) && !next.allDay && next.time);        // timing-only gap
+}
+
+/** A "time to leave / gap" pill for when there's no travel distance to compute. */
+function gapPill(cur, next) {
+  const leave = onwardDepartOf(cur);
+  const start = next.allDay ? "" : next.time;
+  if (!leave || !start) return "";
+  const diff = toMin(start) - toMin(leave);
+  if (diff > 0) return `<span class="leg-pill leg-ok">${icon("clock")} ${humanDuration(diff)} until ${escapeHtml(next.title)} · ${escapeHtml(start)}</span>`;
+  if (diff === 0) return `<span class="leg-pill leg-ok">${icon("clock")} right after · ${escapeHtml(next.title)} ${escapeHtml(start)}</span>`;
+  return `<span class="leg-pill leg-warn">${icon("clock")} overlaps ${escapeHtml(next.title)} · ${escapeHtml(start)}</span>`;
 }
 
 /** The nearest located item before `id` in the ordered list (any earlier day). */
@@ -2129,7 +2163,7 @@ function renderOverview() {
           ${thumbHtml(it, "dv-thumb")}
         </div>`;
       const next = dayItems[i + 1];
-      if (next && it.location?.lat != null && next.location?.lat != null && next.type !== "travel") {
+      if (legBetween(it, next)) {
         dayBody += `<div class="ov-leg leg-slot" data-leg-from="${it.id}" data-leg-to="${next.id}"></div>`;
       }
     });
