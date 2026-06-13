@@ -1047,6 +1047,13 @@ function renderTimeline() {
     }
     dayItems.forEach((it, idx) => {
       const chips = timeChips(it);
+      // Travel items show their own estimated journey time (origin = the
+      // previous located stop, even on an earlier day — e.g. a train that
+      // opens a new day). Flights show their segments instead.
+      if (it.type === "travel" && it.legMode !== "flight" && it.location?.lat != null) {
+        const origin = prevLocatedItem(items, it.id);
+        if (origin) chips.push(durChip(origin.id, it.id, it.legMode || "car"));
+      }
       if (it.location?.name) chips.push(locChip(it.location));
       if (it.link) chips.push(linkChip(it.link));
       if (it.by) chips.push(`<span class="chip chip-author">added by ${avatar(it.by, true)}</span>`);
@@ -1084,9 +1091,10 @@ function renderTimeline() {
       wireDragReorder(card, group);
       group.appendChild(card);
 
-      // Auto travel leg to the next located stop on the same day.
+      // Auto travel leg to the next located stop on the same day. Travel items
+      // carry their own duration chip, so don't insert a leg INTO them.
       const next = dayItems[idx + 1];
-      if (next && it.location?.lat != null && next.location?.lat != null) {
+      if (next && it.location?.lat != null && next.location?.lat != null && next.type !== "travel") {
         group.appendChild(
           el(`<div class="tl-leg leg-slot" data-leg-from="${it.id}" data-leg-to="${next.id}"></div>`)
         );
@@ -1302,8 +1310,41 @@ function flightLegPill(it) {
   return `<span class="leg-pill leg-ok">${icon("plane")} ${escapeHtml(route || "Flight")} to ${escapeHtml(it.title)}</span>`;
 }
 
+/** The nearest located item before `id` in the ordered list (any earlier day). */
+function prevLocatedItem(items, id) {
+  const i = items.findIndex((x) => x.id === id);
+  for (let j = i - 1; j >= 0; j--) {
+    if (items[j].location?.lat != null) return items[j];
+  }
+  return null;
+}
+
+/** Placeholder chip for a travel item's estimated journey time (filled async). */
+function durChip(fromId, toId, mode) {
+  return `<span class="chip leg-dur" data-from="${fromId}" data-to="${toId}" data-mode="${mode}">${modeIcon(mode)} …</span>`;
+}
+
+/** Fill every `.leg-dur` placeholder with its estimated travel time. */
+async function annotateDurChips(channel, root, items) {
+  if (!root) return;
+  const token = (_legTokens[channel] = (_legTokens[channel] || 0) + 1);
+  const byId = Object.fromEntries(items.map((it) => [it.id, it]));
+  for (const node of root.querySelectorAll(".leg-dur[data-from]")) {
+    const from = byId[node.dataset.from], to = byId[node.dataset.to];
+    const mode = node.dataset.mode || "car";
+    if (!from?.location || !to?.location) { node.remove(); continue; }
+    const { minutes, km, estimated } = await travelByMode(from.location, to.location, mode);
+    if (token !== _legTokens[channel]) return;
+    if (!node.isConnected) continue;
+    const dist = km >= 1 ? ` · ${km.toFixed(km < 10 ? 1 : 0)} km` : "";
+    node.innerHTML = `${modeIcon(mode)} ~${humanDuration(minutes)}${estimated ? " est." : ""}${dist}`;
+    node.title = `Estimated ${TRAVEL_MODES[mode]?.label || "travel"} time from ${from.title}`;
+  }
+}
+
 function annotateLegs(items) {
   annotateLegSlots("timeline", document.getElementById("timeline"), items);
+  annotateDurChips("timeline-dur", document.getElementById("timeline"), items);
 }
 
 function renderSuggestions() {
@@ -2053,6 +2094,10 @@ function renderOverview() {
   } else {
     dayItems.forEach((it, i) => {
       const chips = timeChips(it, { short: true });
+      if (it.type === "travel" && it.legMode !== "flight" && it.location?.lat != null) {
+        const origin = prevLocatedItem(items, it.id);
+        if (origin) chips.push(durChip(origin.id, it.id, it.legMode || "car"));
+      }
       if (it.location?.name) chips.push(locChip(it.location));
       if (it.link) chips.push(linkChip(it.link, { short: true }));
       if (it.by) chips.push(`<span class="chip chip-author">${avatar(it.by, false)}</span>`);
@@ -2068,7 +2113,7 @@ function renderOverview() {
           ${thumbHtml(it, "dv-thumb")}
         </div>`;
       const next = dayItems[i + 1];
-      if (next && it.location?.lat != null && next.location?.lat != null) {
+      if (next && it.location?.lat != null && next.location?.lat != null && next.type !== "travel") {
         dayBody += `<div class="ov-leg leg-slot" data-leg-from="${it.id}" data-leg-to="${next.id}"></div>`;
       }
     });
@@ -2236,6 +2281,7 @@ function renderOverview() {
 
   wireSuggestionDrag(wrap);
   annotateLegSlots("overview", wrap.querySelector(".dv-body"), dayItems);
+  annotateDurChips("overview-dur", wrap.querySelector(".dv-body"), items);
   loadThumbs(wrap);
   refreshOverviewMap();
 }

@@ -1,27 +1,52 @@
 :root {
-  /* Apple-style dark palette: neutral near-blacks + vibrant system colors */
-  --bg: #0b0d10;        /* page background */
-  --bg-soft: #16191f;   /* inputs, subtle fills */
-  --panel: #15181d;     /* cards */
-  --panel-2: #20242c;   /* selected / hover fills */
-  --line: rgba(255, 255, 255, 0.09); /* hairline separators */
-  --line-strong: rgba(255, 255, 255, 0.16);
-  --text: #f5f7fa;      /* primary text */
-  --muted: #98a2b0;     /* secondary text */
-  --accent: #0a84ff;    /* Apple system blue */
-  --accent-2: #30d158;  /* Apple system green */
-  --warn: #ffd60a;
-  --danger: #ff453a;
-  --on-accent: #ffffff; /* text on accent-colored buttons */
-  --radius: 16px;       /* rounded containers */
+  /* Light motif (default) — Apple system palette */
+  --bg: #f4f5f7;        /* grouped page background */
+  --bg-soft: #ffffff;   /* inputs, subtle fills */
+  --panel: #ffffff;     /* cards */
+  --panel-2: #eceef2;   /* selected / hover fills */
+  --line: rgba(0, 0, 0, 0.10);        /* hairline separators */
+  --line-strong: rgba(0, 0, 0, 0.16);
+  --text: #1c1c1e;      /* primary text */
+  --muted: #6e7480;     /* secondary text */
+  --accent: #007aff;    /* Apple system blue (light) */
+  --accent-2: #34c759;  /* Apple system green */
+  --warn: #ff9500;
+  --danger: #ff3b30;
+  --on-accent: #ffffff;
+  --radius: 16px;
   --radius-sm: 12px;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow: 0 6px 22px rgba(0, 0, 0, 0.09);
 
-  /* item type colors (Apple system palette) */
-  --t-hotel: #bf5af2;   /* purple */
-  --t-event: #0a84ff;   /* blue */
-  --t-travel: #30d158;  /* green */
-  --t-task: #ff9f0a;    /* orange */
+  /* item type colors */
+  --t-hotel: #af52de;   /* purple */
+  --t-event: #007aff;   /* blue */
+  --t-travel: #34c759;  /* green */
+  --t-task: #ff9500;    /* orange */
+}
+
+/* Dark motif — follows the system setting automatically */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0d10;
+    --bg-soft: #16191f;
+    --panel: #15181d;
+    --panel-2: #20242c;
+    --line: rgba(255, 255, 255, 0.09);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --text: #f5f7fa;
+    --muted: #98a2b0;
+    --accent: #0a84ff;
+    --accent-2: #30d158;
+    --warn: #ffd60a;
+    --danger: #ff453a;
+    --on-accent: #ffffff;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+
+    --t-hotel: #bf5af2;
+    --t-event: #0a84ff;
+    --t-travel: #30d158;
+    --t-task: #ff9f0a;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -65,7 +90,7 @@ input::placeholder { color: var(--muted); }
   inset: 0;
   display: grid;
   place-items: center;
-  background: radial-gradient(1200px 600px at 50% -10%, #1c2c44 0%, var(--bg) 60%);
+  background: radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--accent) 20%, var(--bg)) 0%, var(--bg) 60%);
   z-index: 5000;
 }
 .lock-card {
@@ -594,8 +619,8 @@ a.chip-link:hover { border-color: var(--accent); }
   border-radius: 16px;
   border: 1px solid var(--line);
 }
-.leg-pill.leg-ok { background: rgba(59, 130, 246, 0.14); border-color: rgba(59, 130, 246, 0.4); color: #bfdbfe; }
-.leg-pill.leg-warn { background: rgba(248, 113, 113, 0.14); border-color: rgba(248, 113, 113, 0.4); color: #fecaca; }
+.leg-pill.leg-ok { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--accent); }
+.leg-pill.leg-warn { background: color-mix(in srgb, var(--danger) 14%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger); }
 .leg-pill.leg-calc { background: var(--panel-2); color: var(--muted); }
 .leg-pill strong { font-weight: 800; }
 .tl-actions { display: flex; flex-direction: column; gap: 6px; }
@@ -1058,7 +1083,7 @@ a.chip-link:hover { border-color: var(--accent); }
   /* Clear the status bar / notch so the header isn't cut off in the
      installed web app (apple-mobile-web-app status bar is translucent). */
   .topbar {
-    padding-top: calc(10px + env(safe-area-inset-top));
+    padding-top: max(10px, env(safe-area-inset-top));
     padding-left: max(10px, env(safe-area-inset-left));
     padding-right: max(10px, env(safe-area-inset-right));
   }
