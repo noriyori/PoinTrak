@@ -1462,7 +1462,10 @@ async function suggestionModal(id) {
       ${r.address ? `<div class="pd-line">📍 ${escapeHtml(r.address)}</div>` : ""}
       ${r.phone ? `<div class="pd-line">📞 <a href="tel:${escapeHtml(r.phone.replace(/\s+/g, ""))}">${escapeHtml(r.phone)}</a></div>` : ""}
       ${r.website ? `<div class="pd-line">🔗 <a href="${escapeHtml(r.website)}" target="_blank" rel="noopener">Website ↗</a></div>` : ""}
-      ${r.mapsUri ? `<div class="pd-line">🗺 <a href="${escapeHtml(r.mapsUri)}" target="_blank" rel="noopener">Open in Google Maps ↗</a></div>` : ""}
+      ${(() => {
+        const am = appleMapsUrl(loc) || (r.address ? "https://maps.apple.com/?q=" + encodeURIComponent(r.address) : "");
+        return am ? `<div class="pd-line">${icon("map")} <a href="${am}" target="_blank" rel="noopener">Open in Apple Maps ↗</a></div>` : "";
+      })()}
       ${hours}
     `;
   }
