@@ -3,11 +3,15 @@
    ============================================================ */
 
 const ITEM_TYPES = {
-  hotel:  { icon: "🏨", label: "Hotel stay" },
-  event:  { icon: "🎟️", label: "Event / activity" },
-  travel: { icon: "🚗", label: "Travel / transport" },
-  task:   { icon: "✔️", label: "Task / errand" },
+  hotel:  { ic: "bed",    label: "Hotel stay" },
+  event:  { ic: "ticket", label: "Event / activity" },
+  travel: { ic: "car",    label: "Travel / transport" },
+  task:   { ic: "check",  label: "Task / errand" },
 };
+/** Travel mode → icon name (for SVG icons in HTML contexts). */
+const MODE_IC = { car: "car", train: "train", flight: "plane", bike: "bike", walk: "walk" };
+/** SVG icon for a travel mode (used by timeline, map, leg pills). */
+function modeIcon(mode) { return icon(MODE_IC[mode] || "car"); }
 
 /** Combine a date + time into a datetime-local value ("YYYY-MM-DDTHH:MM"). */
 function combineDT(d, t) {
@@ -48,11 +52,8 @@ function flightSegments(it) {
 
 /** Icon for an item — travel items show their transport mode's icon. */
 function itemIcon(it) {
-  if (it.type === "travel") {
-    const m = TRAVEL_MODES[it.legMode || "car"];
-    if (m) return m.icon;
-  }
-  return (ITEM_TYPES[it.type] || ITEM_TYPES.event).icon;
+  if (it.type === "travel") return modeIcon(it.legMode || "car");
+  return icon((ITEM_TYPES[it.type] || ITEM_TYPES.event).ic);
 }
 
 /* ---------- People ---------- */
@@ -114,22 +115,22 @@ function appleMapsUrl(loc) {
   return null;
 }
 
-/** A 📍 location chip that opens the place in Apple Maps when tapped. */
+/** A location chip that opens the place in Apple Maps when tapped. */
 function locChip(loc) {
   if (!loc || !loc.name) return "";
   const am = appleMapsUrl(loc);
   return am
-    ? `<a class="chip chip-link" href="${am}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Open in Apple Maps">📍 ${escapeHtml(loc.name)} ↗</a>`
-    : `<span class="chip">📍 ${escapeHtml(loc.name)}</span>`;
+    ? `<a class="chip chip-link" href="${am}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Open in Apple Maps">${icon("pin")}${escapeHtml(loc.name)}</a>`
+    : `<span class="chip">${icon("pin")}${escapeHtml(loc.name)}</span>`;
 }
 
-/** Inline "📍 place" text that opens Apple Maps (for subtitles, not a chip). */
+/** Inline location text that opens Apple Maps (for subtitles, not a chip). */
 function locInline(loc) {
   if (!loc || !loc.name) return "";
   const am = appleMapsUrl(loc);
   return am
-    ? `<a class="loc-inline" href="${am}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Open in Apple Maps">📍 ${escapeHtml(loc.name)} ↗</a>`
-    : `📍 ${escapeHtml(loc.name)}`;
+    ? `<a class="loc-inline" href="${am}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Open in Apple Maps">${icon("pin")}${escapeHtml(loc.name)}</a>`
+    : `<span class="loc-inline">${icon("pin")}${escapeHtml(loc.name)}</span>`;
 }
 
 function el(html) {
@@ -196,12 +197,16 @@ function linkHost(u) {
     return "link";
   }
 }
-/** A tappable 🌐 chip linking out to a URL. */
-function linkChip(u, opts = {}) {
+/** A small icon+text chip. `text` is treated as plain text and escaped. */
+function chip(iconName, text, extraCls = "") {
+  return `<span class="chip${extraCls ? " " + extraCls : ""}">${iconName ? icon(iconName) : ""}${escapeHtml(text)}</span>`;
+}
+
+/** A tappable chip linking out to a URL. */
+function linkChip(u) {
   const url = normUrl(u);
   if (!url) return "";
-  const label = opts.short ? linkHost(url) : linkHost(url);
-  return `<a class="chip chip-link" href="${escapeHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${escapeHtml(url)}">🌐 ${escapeHtml(label)}</a>`;
+  return `<a class="chip chip-link" href="${escapeHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${escapeHtml(url)}">${icon("link")}${escapeHtml(linkHost(url))}</a>`;
 }
 
 function timeChips(it, opts = {}) {
@@ -212,18 +217,18 @@ function timeChips(it, opts = {}) {
     const chips = [];
     const overnightNT = it.endDate && it.endDate !== it.date;
     if (it.type === "hotel") {
-      if (it.time) chips.push(`<span class="chip">🛎 ${s ? "" : "Check-in "}${escapeHtml(it.time)}</span>`);
+      if (it.time) chips.push(chip("clock", `${s ? "" : "Check-in "}${it.time}`));
       if (it.endTime || it.endDate) {
-        chips.push(`<span class="chip">🚪 ${s ? "" : "Check-out "}${overnightNT ? shortDate(it.endDate) + " " : ""}${escapeHtml(it.endTime || "")}</span>`);
+        chips.push(chip("depart", `${s ? "" : "Check-out "}${overnightNT ? shortDate(it.endDate) + " " : ""}${it.endTime || ""}`));
       }
       const n = nightsBetween(it.date, it.endDate);
-      if (n) chips.push(`<span class="chip">🌙 ${n} night${n > 1 ? "s" : ""}</span>`);
+      if (n) chips.push(chip("moon", `${n} night${n > 1 ? "s" : ""}`));
     } else if (it.allDay) {
-      chips.push(`<span class="chip">📅 ${s ? "all day" : "All day"}${overnightNT ? " · ends " + shortDate(it.endDate) : ""}</span>`);
+      chips.push(chip("sun", `${s ? "all day" : "All day"}${overnightNT ? " · ends " + shortDate(it.endDate) : ""}`));
     } else {
-      if (it.time) chips.push(`<span class="chip">🕘 ${s ? "" : "Start "}${escapeHtml(it.time)}</span>`);
+      if (it.time) chips.push(chip("clock", `${s ? "" : "Start "}${it.time}`));
       if (it.endTime || it.endDate) {
-        chips.push(`<span class="chip">🏁 ${s ? "" : "End "}${overnightNT ? shortDate(it.endDate) + " " : ""}${escapeHtml(it.endTime || "")}</span>`);
+        chips.push(chip("flag", `${s ? "" : "End "}${overnightNT ? shortDate(it.endDate) + " " : ""}${it.endTime || ""}`));
       }
     }
     return chips;
@@ -234,21 +239,19 @@ function timeChips(it, opts = {}) {
   const dep = departOf(it);
 
   const arriveChip = it.time
-    ? `<span class="chip">🛬 ${s ? "" : "Arrive "}${overnight ? shortDate(it.arriveDate) + " " : ""}${escapeHtml(it.time)}</span>`
+    ? chip("arrive", `${s ? "" : "Arrive "}${overnight ? shortDate(it.arriveDate) + " " : ""}${it.time}`)
     : "";
   const departChip = dep
-    ? `<span class="chip">🛫 ${s ? "" : "Depart "}${overnight && it.date ? shortDate(it.date) + " " : ""}${escapeHtml(dep)}${!s && !it.departTime ? " (auto)" : ""}</span>`
+    ? chip("depart", `${s ? "" : "Depart "}${overnight && it.date ? shortDate(it.date) + " " : ""}${dep}${!s && !it.departTime ? " (auto)" : ""}`)
     : "";
-  const stayChip = it.stay ? `<span class="chip">⏳ ${s ? "" : "Stay "}${escapeHtml(humanDuration(it.stay))}</span>` : "";
+  const stayChip = it.stay ? chip("hourglass", `${s ? "" : "Stay "}${humanDuration(it.stay)}`) : "";
   const segs = it.legMode === "flight" ? flightSegments(it) : [];
   const flightChip = segs.length
-    ? `<span class="chip">✈️ ${escapeHtml(
-        segs.map((g) => [g.no, [g.from, g.to].filter(Boolean).join("→")].filter(Boolean).join(" ")).join(", ")
-      )}</span>`
+    ? chip("plane", segs.map((g) => [g.no, [g.from, g.to].filter(Boolean).join("→")].filter(Boolean).join(" ")).join(", "))
     : "";
-  const tzChip = it.tz ? `<span class="chip chip-tz" title="Local time zone">🕓 ${escapeHtml(it.tz)}</span>` : "";
+  const tzChip = it.tz ? chip("clock", it.tz, "chip-tz") : "";
   const seatBits = [it.resv ? "🎫 " + it.resv : "", it.seat ? "💺 " + it.seat : "", it.cost ? "💰 " + it.cost : ""].filter(Boolean);
-  const seatChip = seatBits.length ? `<span class="chip">${escapeHtml(seatBits.join(" · "))}</span>` : "";
+  const seatChip = seatBits.length ? chip("seat", seatBits.join(" · ").replace(/🎫 |💺 |💰 /g, "")) : "";
 
   // Flights/overnight travel read depart→arrive; everything else arrive→stay→depart.
   const order = overnight ? [departChip, arriveChip, tzChip, flightChip, seatChip] : [arriveChip, stayChip, departChip, tzChip, flightChip, seatChip];
@@ -395,11 +398,11 @@ function commentsModal(collection, id) {
   if (!entity) return;
   _openComments = { collection, id };
   const me = getMe();
-  const icon =
-    collection === "items" ? itemIcon(entity) : "💡";
+  const titleIcon =
+    collection === "items" ? itemIcon(entity) : icon("sparkles");
 
   openModal(`
-    <h2>${icon} ${escapeHtml(entity.title)}</h2>
+    <h2>${titleIcon} ${escapeHtml(entity.title)}</h2>
     <div class="cmt-thread">${commentListHtml(entity)}</div>
     <form id="cmt-form" class="inline-form">
       <input id="cmt-input" autocomplete="off"
@@ -451,7 +454,7 @@ function itemEditor(existing, defaults) {
     .map(
       ([key, meta]) => `
       <button type="button" class="type-opt ${it.type === key ? "sel" : ""}" data-type="${key}">
-        <span class="ico">${meta.icon}</span>${meta.label}
+        <span class="type-opt-ic">${icon(meta.ic)}</span>${meta.label}
       </button>`
     )
     .join("");
@@ -1249,9 +1252,10 @@ function buildLegPill(cur, next, minutes, km, estimated, m, legs) {
     }
   }
 
+  const mk = Object.keys(TRAVEL_MODES).find((k) => TRAVEL_MODES[k] === m) || "car";
   return (
     `<span class="leg-pill ${warn ? "leg-warn" : "leg-ok"}">` +
-    `${m.icon} ~${drive}${dist}${via} to ${escapeHtml(next.title)}${timing}</span>`
+    `${modeIcon(mk)} ~${drive}${dist}${via} to ${escapeHtml(next.title)}${timing}</span>`
   );
 }
 
@@ -1282,7 +1286,7 @@ async function annotateLegSlots(channel, root, items) {
       continue;
     }
 
-    node.innerHTML = `<span class="leg-pill leg-calc">${m.icon} estimating ${m.label.toLowerCase()}…</span>`;
+    node.innerHTML = `<span class="leg-pill leg-calc">${modeIcon(mode)} estimating ${m.label.toLowerCase()}…</span>`;
     const { minutes, km, estimated, legs } = await travelByMode(cur.location, next.location, mode);
     if (token !== _legTokens[channel]) return; // superseded by a newer render
     if (!node.isConnected) continue; // node replaced during the await
@@ -1295,7 +1299,7 @@ function flightLegPill(it) {
   const route = flightSegments(it)
     .map((g) => [g.no, [g.from, g.to].filter(Boolean).join("→")].filter(Boolean).join(" "))
     .join(", ");
-  return `<span class="leg-pill leg-ok">✈️ ${escapeHtml(route || "Flight")} to ${escapeHtml(it.title)}</span>`;
+  return `<span class="leg-pill leg-ok">${icon("plane")} ${escapeHtml(route || "Flight")} to ${escapeHtml(it.title)}</span>`;
 }
 
 function annotateLegs(items) {
@@ -2011,12 +2015,12 @@ function renderOverview() {
         ${countdown ? `<div class="ov-countdown">${countdown}</div>` : ""}
       </div>
       <div class="ov-quick">
-        <button type="button" class="ov-qbtn" data-q="add"><span class="ov-qcirc">＋</span><span class="ov-qlbl">New</span></button>
-        <button type="button" class="ov-qpill" data-q="city"><span class="ov-qpill-ico">🏙</span> Explore city</button>
+        <button type="button" class="ov-qbtn" data-q="add"><span class="ov-qcirc">${icon("plus")}</span><span class="ov-qlbl">New</span></button>
+        <button type="button" class="ov-qpill" data-q="city"><span class="ov-qpill-ico">${icon("city")}</span> Explore city</button>
       </div>
       ${
         nextUp
-          ? `<div class="ov-nextup">⏭ <strong>Next up</strong> · ${itemIcon(nextUp)} ${escapeHtml(nextUp.title)}${
+          ? `<div class="ov-nextup"><span class="ov-nextup-ic">${itemIcon(nextUp)}</span> <strong>Next up</strong> · ${escapeHtml(nextUp.title)}${
               nextUp.date ? ` · ${shortDate(nextUp.date)}${nextUp.time ? " " + escapeHtml(nextUp.time) : ""}` : ""
             }</div>`
           : ""
@@ -2034,7 +2038,7 @@ function renderOverview() {
   const dayChips = dayStripHtml(_overviewDay, { all: true, unscheduled: hasUnscheduled });
   const daySelector = `
     <div class="ov-card ov-dayselect">
-      <div class="ov-card-head"><h3>📅 Days</h3></div>
+      <div class="ov-card-head"><h3>${icon("calendar")} Days</h3></div>
       <div class="day-chips">${dayChips}</div>
     </div>`;
 
@@ -2073,9 +2077,9 @@ function renderOverview() {
     <div class="ov-card ov-dayview">
       <div class="ov-card-head">
         <div class="dv-nav">
-          <button class="dv-arrow" data-step="-1" ${prevDisabled}>◀</button>
+          <button class="dv-arrow" data-step="-1" ${prevDisabled}>${icon("chevronLeft")}</button>
           <h3>${escapeHtml(dayLabel(_overviewDay, dayList))}</h3>
-          <button class="dv-arrow" data-step="1" ${nextDisabled}>▶</button>
+          <button class="dv-arrow" data-step="1" ${nextDisabled}>${icon("chevronRight")}</button>
         </div>
         <div class="ov-head-actions"><button class="ov-add" data-add="item">+ Add</button><button class="link ov-go" data-go="timeline">Full timeline →</button></div>
       </div>
@@ -2085,7 +2089,7 @@ function renderOverview() {
   // ----- Top suggestions (right) -----
   const suggHtml = `
     <div class="ov-card">
-      <div class="ov-card-head"><h3>💡 Top suggestions</h3><div class="ov-head-actions"><button class="ov-add" data-add="suggestion">+ Add</button><button class="link ov-go" data-go="suggestions">View all →</button></div></div>
+      <div class="ov-card-head"><h3>${icon("sparkles")} Top suggestions</h3><div class="ov-head-actions"><button class="ov-add" data-add="suggestion">+ Add</button><button class="link ov-go" data-go="suggestions">View all →</button></div></div>
       ${
         topSugg.length
           ? `<ul class="ov-list">${topSugg
@@ -2128,7 +2132,7 @@ function renderOverview() {
       const rows = collapsed
         ? ""
         : open.length
-        ? `<ul class="ov-list">${open.slice(0, 8).map((c) => `<li class="ov-li"><button type="button" class="ov-ck" data-ck="${c.id}" title="Mark done" aria-label="Mark done">⬜</button><span class="ov-li-main"><span class="ov-li-title">${escapeHtml(c.text)}</span></span>${c.assignee ? avatar(c.assignee, false) : ""}</li>`).join("")}</ul>`
+        ? `<ul class="ov-list">${open.slice(0, 8).map((c) => `<li class="ov-li"><button type="button" class="ov-ck" data-ck="${c.id}" title="Mark done" aria-label="Mark done">${icon("circle")}</button><span class="ov-li-main"><span class="ov-li-title">${escapeHtml(c.text)}</span></span>${c.assignee ? avatar(c.assignee, false) : ""}</li>`).join("")}</ul>`
         : `<p class="empty-hint" style="margin:4px 0 0">All done 🎉</p>`;
       return `<div class="ov-sec ${collapsed ? "collapsed" : ""}">
         <button type="button" class="ov-sec-head" data-sec="${escapeHtml(section)}">
@@ -2139,7 +2143,7 @@ function renderOverview() {
   }
   const checkHtml = `
     <div class="ov-card">
-      <div class="ov-card-head"><h3>✅ Checklist</h3><div class="ov-head-actions"><button class="ov-add" data-add="check">+ Add</button><button class="link ov-go" data-go="checklist">View all →</button></div></div>
+      <div class="ov-card-head"><h3>${icon("list")} Checklist</h3><div class="ov-head-actions"><button class="ov-add" data-add="check">+ Add</button><button class="link ov-go" data-go="checklist">View all →</button></div></div>
       <div class="ov-progress"><div class="ov-progress-bar" style="width:${pct}%"></div></div>
       <div class="ov-progress-lbl">${doneCount} of ${totalCount} done (${pct}%)</div>
       ${checkBody}
@@ -2148,7 +2152,7 @@ function renderOverview() {
   // ----- Mini map (right) -----
   const mapHtml = `
     <div class="ov-card ov-map-card">
-      <div class="ov-card-head"><h3>🗺 Route</h3><button class="link ov-go" data-go="map">Open full map →</button></div>
+      <div class="ov-card-head"><h3>${icon("map")} Route</h3><button class="link ov-go" data-go="map">Open full map →</button></div>
       <div id="map-overview"></div>
     </div>`;
 

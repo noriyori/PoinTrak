@@ -43,10 +43,10 @@ function ensureMap(id, opts = {}) {
       const div = L.DomUtil.create("div", "map-legend");
       div.innerHTML =
         '<div class="ml-title">Travel mode</div>' +
-        Object.values(TRAVEL_MODES)
+        Object.entries(TRAVEL_MODES)
           .map(
-            (m) =>
-              `<div class="ml-row"><span class="ml-swatch" style="background:${m.color}"></span>${m.icon} ${m.label}</div>`
+            ([k, m]) =>
+              `<div class="ml-row"><span class="ml-swatch" style="background:${m.color}"></span>${modeIcon(k)} ${m.label}</div>`
           )
           .join("");
       return div;
@@ -97,11 +97,11 @@ function refreshMapInto(id, opts = {}) {
     latlngs.push(ll);
     const marker = L.marker(ll, { icon: numberedIcon(i + 1, it.type) });
     if (entry.interactive) {
-      const icon = itemIcon(it);
+      const ico = itemIcon(it);
       const when = formatWhen(it);
       const am = appleMapsUrl(it.location);
       marker.bindPopup(
-        `<strong>${icon} ${escapeHtml(it.title)}</strong>` +
+        `<strong>${ico} ${escapeHtml(it.title)}</strong>` +
           (when ? `<br><span style="color:#666">${escapeHtml(when)}</span>` : "") +
           (it.location.label
             ? `<br><span style="color:#888;font-size:11px">${escapeHtml(it.location.label)}</span>`
@@ -198,7 +198,7 @@ async function drawLegs(entry, located) {
       : L.polyline(straight, { color: m.color, weight: 3, opacity: 0.7, dashArray: "6 8" });
 
     if (token !== _mapLegToken) return;
-    if (entry.interactive) line.bindPopup(`${m.icon} ${m.label} · ${escapeHtml(from.title)} → ${escapeHtml(to.title)}`);
+    if (entry.interactive) line.bindPopup(`${modeIcon(mode)} ${m.label} · ${escapeHtml(from.title)} → ${escapeHtml(to.title)}`);
     line.addTo(entry.route);
   }
 }
