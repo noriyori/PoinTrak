@@ -1257,24 +1257,23 @@ function buildLegPill(cur, next, minutes, km, estimated, m, legs) {
 
   let timing = "";
   let warn = false;
-  // When you leave the current stop (arrival for travel, else end/check-out).
-  const depart = onwardDepartOf(cur);
-  if (depart) {
-    const leaveMin = toMin(depart);
-    const arriveMin = leaveMin + minutes;
-    timing = ` · leave <strong>${fromMin(leaveMin)}</strong> → arrive <strong>${fromMin(arriveMin)}</strong>`;
-    if (next.time && arriveMin > toMin(next.time)) {
+  // Earliest you could leave the current stop (its arrival/end/check-out).
+  const earliest = onwardDepartOf(cur);
+  if (next.time) {
+    // Prefer working BACKWARDS from the next event's scheduled time — excess
+    // time is spent at the current stop, not arriving early at the next one.
+    const target = toMin(next.time);
+    const leaveBy = target - minutes;
+    timing = ` · leave by <strong>${fromMin(leaveBy)}</strong> · arrive ${escapeHtml(next.time)}`;
+    if (earliest != null && toMin(earliest) > leaveBy) {
+      // You can't get away early enough → you'd arrive late.
       warn = true;
-      timing += ` · ⚠️ ${humanDuration(arriveMin - toMin(next.time))} late for ${fromMin(toMin(next.time))}`;
+      timing += ` · ⚠️ ${humanDuration(toMin(earliest) + minutes - target)} late`;
     }
-  } else if (next.time) {
-    // Work backwards from the next arrival.
-    const leaveMin = toMin(next.time) - minutes;
-    timing = ` · leave by <strong>${fromMin(leaveMin)}</strong> to arrive ${escapeHtml(next.time)}`;
-    if (cur.time && leaveMin < toMin(cur.time)) {
-      warn = true;
-      timing += " · ⚠️ tight";
-    }
+  } else if (earliest) {
+    // No target time — show it forward from when you leave.
+    const leaveMin = toMin(earliest);
+    timing = ` · leave <strong>${fromMin(leaveMin)}</strong> → arrive <strong>${fromMin(leaveMin + minutes)}</strong>`;
   }
 
   const mk = Object.keys(TRAVEL_MODES).find((k) => TRAVEL_MODES[k] === m) || "car";
