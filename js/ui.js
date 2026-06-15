@@ -1486,6 +1486,21 @@ async function suggestionModal(id) {
     document.getElementById("sg-del").addEventListener("click", () => { removeSuggestion(s.id); closeModal(); });
   }
 
+  // The banner is tappable and opens a gallery; it upgrades to multiple photos
+  // once Google place details load.
+  let sgPhotos = photo ? [{ thumb: photo, full: photo }] : [];
+  const wirePhoto = () => {
+    const el = document.getElementById("sg-photo");
+    if (!el || !sgPhotos.length) return;
+    el.classList.add("has-photo");
+    el.style.cursor = "pointer";
+    if (!el.style.backgroundImage) el.style.backgroundImage = `url("${sgPhotos[0].thumb || sgPhotos[0].full}")`;
+    el.querySelector(".ph-count")?.remove();
+    if (sgPhotos.length > 1) el.insertAdjacentHTML("beforeend", `<span class="ph-count">${icon("images")} ${sgPhotos.length}</span>`);
+    el.onclick = () => openGallery(sgPhotos, 0, s.title);
+  };
+  wirePhoto();
+
   // Lazy-fill the banner photo if we don't already have one.
   const ph = document.getElementById("sg-photo");
   if (ph && !photo && loc?.name) {
@@ -1494,7 +1509,7 @@ async function suggestionModal(id) {
       const r = await googlePlaceDetails(loc.name);
       if (r && r.photo) url = r.photo;
     }
-    if (url && ph.isConnected) { ph.style.backgroundImage = `url("${url}")`; ph.classList.add("has-photo"); }
+    if (url && ph.isConnected && !sgPhotos.length) { sgPhotos = [{ thumb: url, full: url }]; wirePhoto(); }
   }
 
   // Rich place details (rating, hours, website…) when available.
@@ -1503,6 +1518,7 @@ async function suggestionModal(id) {
     const box = document.getElementById("sg-details");
     if (!box) return;
     if (r.error) { box.innerHTML = ""; return; }
+    if (r.photos && r.photos.length) { sgPhotos = r.photos; wirePhoto(); }
     const hours = r.hours.length
       ? `<details class="pd-hours"><summary>Opening hours</summary><ul>${r.hours.map((h) => `<li>${escapeHtml(h)}</li>`).join("")}</ul></details>`
       : "";
@@ -1741,6 +1757,70 @@ function renderLinkedChecklist(itemId) {
   );
 }
 
+/* ---------- Photo gallery (lightbox) ---------- */
+/** Normalize photos to [{thumb, full}]. Accepts strings or objects. */
+function normPhotos(photos) {
+  return (photos || [])
+    .map((p) => (typeof p === "string" ? { thumb: p, full: p } : p))
+    .filter((p) => p && (p.full || p.thumb));
+}
+
+/** A tappable photo banner with a "N photos" badge when there's more than one. */
+function photoBox(photos, cls) {
+  const list = normPhotos(photos);
+  if (!list.length) return "";
+  const more = list.length > 1
+    ? `<span class="ph-count">${icon("images")} ${list.length}</span>`
+    : "";
+  return `<button type="button" class="ph-box ${cls}" style="background-image:url('${escapeHtml(list[0].thumb || list[0].full)}')">${more}</button>`;
+}
+
+let _gal = { photos: [], i: 0 };
+/** Open a full-screen-ish gallery lightbox over the given photos. */
+function openGallery(photos, start, title) {
+  const list = normPhotos(photos);
+  if (!list.length) return;
+  _gal = { photos: list, i: Math.max(0, Math.min(start || 0, list.length - 1)) };
+  openModal(`
+    <div class="gallery">
+      <div class="gallery-head">
+        <span id="gal-count" class="gallery-count"></span>
+        ${title ? `<span class="gallery-title">${escapeHtml(title)}</span>` : ""}
+      </div>
+      <div class="gallery-main">
+        ${list.length > 1 ? `<button type="button" class="gallery-nav gallery-prev" aria-label="Previous">${icon("chevronLeft")}</button>` : ""}
+        <div class="gallery-img" id="gal-img"></div>
+        ${list.length > 1 ? `<button type="button" class="gallery-nav gallery-next" aria-label="Next">${icon("chevronRight")}</button>` : ""}
+      </div>
+      ${list.length > 1 ? `<div class="gallery-strip" id="gal-strip"></div>` : ""}
+    </div>
+  `);
+  const render = () => {
+    const cur = _gal.photos[_gal.i];
+    const img = document.getElementById("gal-img");
+    if (img) img.style.backgroundImage = `url("${cur.full || cur.thumb}")`;
+    const cnt = document.getElementById("gal-count");
+    if (cnt) cnt.textContent = `${_gal.i + 1} / ${_gal.photos.length}`;
+    const strip = document.getElementById("gal-strip");
+    if (strip) {
+      strip.innerHTML = _gal.photos
+        .map((p, idx) => `<button type="button" class="gal-thumb ${idx === _gal.i ? "sel" : ""}" data-i="${idx}" style="background-image:url('${escapeHtml(p.thumb || p.full)}')"></button>`)
+        .join("");
+      strip.querySelectorAll(".gal-thumb").forEach((b) =>
+        b.addEventListener("click", () => { _gal.i = +b.dataset.i; render(); })
+      );
+      const sel = strip.querySelector(".gal-thumb.sel");
+      if (sel) sel.scrollIntoView({ block: "nearest", inline: "center" });
+    }
+  };
+  const step = (d) => { _gal.i = (_gal.i + d + _gal.photos.length) % _gal.photos.length; render(); };
+  const prev = document.querySelector(".gallery-prev");
+  const next = document.querySelector(".gallery-next");
+  if (prev) prev.addEventListener("click", () => step(-1));
+  if (next) next.addEventListener("click", () => step(1));
+  render();
+}
+
 async function placeDetailsModal(it) {
   const loc = it.location || {};
   const title = loc.name || it.title || "Place";
@@ -1766,8 +1846,9 @@ async function placeDetailsModal(it) {
   const hours = r.hours.length
     ? `<details class="pd-hours"><summary>Opening hours</summary><ul>${r.hours.map((h) => `<li>${escapeHtml(h)}</li>`).join("")}</ul></details>`
     : "";
+  const gallery = r.photos && r.photos.length ? r.photos : (r.photo ? [{ thumb: r.photo, full: r.photo }] : []);
   body.innerHTML = `
-    ${r.photo ? `<div class="pd-photo" style="background-image:url('${escapeHtml(r.photo)}')"></div>` : ""}
+    ${photoBox(gallery, "pd-photo")}
     ${r.rating ? `<div class="pd-rating">★ ${r.rating} <span class="muted">(${r.ratingCount})</span></div>` : ""}
     ${r.summary ? `<p class="pd-summary">${escapeHtml(r.summary)}</p>` : ""}
     ${r.address ? `<div class="pd-line">📍 ${escapeHtml(r.address)}</div>` : ""}
@@ -1776,6 +1857,8 @@ async function placeDetailsModal(it) {
     ${r.mapsUri ? `<div class="pd-line">🗺 <a href="${escapeHtml(r.mapsUri)}" target="_blank" rel="noopener">Open in Google Maps ↗</a></div>` : ""}
     ${hours}
   `;
+  const ph = body.querySelector(".pd-photo");
+  if (ph && gallery.length) ph.addEventListener("click", () => openGallery(gallery, 0, title));
 }
 
 /* ============================================================
