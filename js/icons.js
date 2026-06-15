@@ -50,6 +50,7 @@ const ICONS = {
   ticketAlt: '<path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4Z"/>',
   money: '<rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.3"/>',
   images: '<rect x="3" y="3" width="14" height="14" rx="2.5"/><circle cx="8" cy="8" r="1.4"/><path d="m3 13 3.5-3 4 3.5"/><path d="M21 8v11a2 2 0 0 1-2 2H8"/>',
+  pencil: '<path d="M4 20h4L19 9a2 2 0 0 0-3-3L5 17v3Z"/><path d="m14.5 7.5 3 3"/>',
 };
 
 /** Render an inline SVG icon. Sizes to 1em by default (control via font-size). */
