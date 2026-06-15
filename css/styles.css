@@ -1175,6 +1175,26 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .type-opt-ic .ico { font-size: 24px; display: inline-block; margin: 0; }
 .type-opt.sel .type-opt-ic { color: var(--accent); }
 
+/* Event detail view */
+.ed-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.ed-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ed-title h2 { margin: 0; font-size: 19px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed-ic { font-size: 22px; flex: none; color: var(--accent); display: inline-flex; }
+.ed-ic[data-type="hotel"]  { color: var(--t-hotel); }
+.ed-ic[data-type="event"]  { color: var(--t-event); }
+.ed-ic[data-type="travel"] { color: var(--t-travel); }
+.ed-ic[data-type="task"]   { color: var(--t-task); }
+.ed-meta { margin-bottom: 10px; }
+.ed-notes { color: var(--text); font-size: 14px; white-space: pre-wrap; margin: 0 0 12px; }
+#ed-photo:not(:empty) { margin-bottom: 12px; }
+.icon-btn {
+  flex: none; width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg-soft); border: 1px solid var(--line); color: var(--text);
+  display: grid; place-items: center; cursor: pointer;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+.icon-btn .ico { font-size: 18px; }
+
 /* Tappable photo banner + "N photos" badge */
 .ph-box { position: relative; display: block; border: none; padding: 0; cursor: pointer; background-size: cover; background-position: center; }
 .sg-photo { position: relative; }

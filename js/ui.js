@@ -1088,23 +1088,18 @@ function renderTimeline() {
           </div>
           ${thumbHtml(it, "tl-thumb")}
           <div class="tl-actions">
-            ${it.location?.name ? `<button data-act="info" title="Place details">ℹ️</button>` : ""}
             <button data-act="comments" title="Comments">💬 ${(it.comments || []).length || ""}</button>
-            <button data-act="done">${it.done ? "↺" : "✓"}</button>
-            <button data-act="edit">✎</button>
+            <button data-act="done" title="${it.done ? "Mark not done" : "Mark done"}">${it.done ? "↺" : "✓"}</button>
           </div>
         </div>
       `);
-      // Tap the row (anywhere but a button/link/grip) to open event details.
+      // Tap the row (anywhere but a button/link/grip) to open the detail view.
       card.addEventListener("click", (e) => {
         if (e.target.closest("button, a, .tl-grip, .tl-actions")) return;
-        itemEditor(it);
+        eventDetails(it);
       });
-      card.querySelector('[data-act="edit"]').addEventListener("click", () => itemEditor(it));
       card.querySelector('[data-act="done"]').addEventListener("click", () => toggleItemDone(it.id));
       card.querySelector('[data-act="comments"]').addEventListener("click", () => commentsModal("items", it.id));
-      const infoBtn = card.querySelector('[data-act="info"]');
-      if (infoBtn) infoBtn.addEventListener("click", () => placeDetailsModal(it));
       wireDragReorder(card, group);
       group.appendChild(card);
 
@@ -1821,6 +1816,87 @@ function openGallery(photos, start, title) {
   render();
 }
 
+/* ============================================================
+   Event details — combined view (tap an item to open). Shows all of the
+   item's info + rich place details/photos, with an edit button to go into
+   edit mode.
+   ============================================================ */
+async function eventDetails(it) {
+  const loc = it.location || {};
+  const title = it.title || loc.name || "Event";
+  const all = orderedItems();
+
+  const chips = timeChips(it);
+  if (it.type === "travel" && it.legMode !== "flight" && it.location?.lat != null) {
+    const origin = prevLocatedItem(all, it.id);
+    if (origin) chips.push(durChip(origin.id, it.id, it.legMode || "car"));
+  }
+  if (loc.name) chips.push(locChip(loc));
+  if (it.link) chips.push(linkChip(it.link));
+  if (it.by) chips.push(`<span class="chip chip-author">added by ${avatar(it.by, true)}</span>`);
+
+  openModal(`
+    <div class="ed-head">
+      <div class="ed-title"><span class="ed-ic" data-type="${it.type}">${itemIcon(it)}</span><h2>${escapeHtml(title)}</h2></div>
+      <button type="button" class="icon-btn" id="ed-edit" title="Edit">${icon("pencil")}</button>
+    </div>
+    <div id="ed-photo"></div>
+    <div class="tl-meta ed-meta">${chips.join("")}</div>
+    ${it.notes ? `<p class="ed-notes">${escapeHtml(it.notes)}</p>` : ""}
+    <div id="linked-checklist"></div>
+    <div id="ed-place">${loc.name && googlePlacesEnabled() ? '<p class="empty-hint">Loading place info…</p>' : ""}</div>
+    <div class="modal-actions">
+      <button type="button" class="mini" id="ed-cmt">💬 Comments${(it.comments || []).length ? " · " + it.comments.length : ""}</button>
+      <button type="button" class="mini" id="ed-done">${it.done ? "↺ Mark not done" : "✓ Mark done"}</button>
+      <span class="spacer"></span>
+      <button type="button" class="primary" id="ed-close">Done</button>
+    </div>
+  `);
+  document.getElementById("ed-edit").addEventListener("click", () => itemEditor(it));
+  document.getElementById("ed-close").addEventListener("click", closeModal);
+  document.getElementById("ed-cmt").addEventListener("click", () => commentsModal("items", it.id));
+  document.getElementById("ed-done").addEventListener("click", () => { toggleItemDone(it.id); closeModal(); });
+  renderLinkedChecklist(it.id);
+  annotateDurChips("ed-dur", document.querySelector(".ed-meta"), all);
+
+  // Rich place info: photo gallery + rating / address / hours.
+  if (loc.name && googlePlacesEnabled()) {
+    const r = await googlePlaceDetails([loc.name, loc.label].filter(Boolean).join(" "));
+    const place = document.getElementById("ed-place");
+    if (!place) return;
+    if (r.error) { place.innerHTML = ""; return; }
+    const gallery = r.photos && r.photos.length ? r.photos : (r.photo ? [{ thumb: r.photo, full: r.photo }] : []);
+    const pbox = document.getElementById("ed-photo");
+    if (pbox && gallery.length) {
+      pbox.innerHTML = photoBox(gallery, "pd-photo");
+      const phEl = pbox.querySelector(".pd-photo");
+      if (phEl) phEl.addEventListener("click", () => openGallery(gallery, 0, title));
+    }
+    const hours = r.hours.length
+      ? `<details class="pd-hours"><summary>Opening hours</summary><ul>${r.hours.map((h) => `<li>${escapeHtml(h)}</li>`).join("")}</ul></details>`
+      : "";
+    const am = appleMapsUrl(loc) || (r.address ? "https://maps.apple.com/?q=" + encodeURIComponent(r.address) : "");
+    place.innerHTML = `
+      ${r.rating ? `<div class="pd-rating">★ ${r.rating} <span class="muted">(${r.ratingCount})</span></div>` : ""}
+      ${r.summary ? `<p class="pd-summary">${escapeHtml(r.summary)}</p>` : ""}
+      ${r.address ? `<div class="pd-line">📍 ${escapeHtml(r.address)}</div>` : ""}
+      ${r.phone ? `<div class="pd-line">📞 <a href="tel:${escapeHtml(r.phone.replace(/\s+/g, ""))}">${escapeHtml(r.phone)}</a></div>` : ""}
+      ${r.website ? `<div class="pd-line">🔗 <a href="${escapeHtml(r.website)}" target="_blank" rel="noopener">Website ↗</a></div>` : ""}
+      ${am ? `<div class="pd-line">${icon("map")} <a href="${am}" target="_blank" rel="noopener">Open in Apple Maps ↗</a></div>` : ""}
+      ${hours}
+    `;
+  } else if (loc.name) {
+    // No Google key — try a single Wikipedia photo for the banner.
+    const url = await fetchPlacePhoto(loc.name);
+    const pbox = document.getElementById("ed-photo");
+    if (url && pbox) {
+      const g = [{ thumb: url, full: url }];
+      pbox.innerHTML = photoBox(g, "pd-photo");
+      pbox.querySelector(".pd-photo")?.addEventListener("click", () => openGallery(g, 0, title));
+    }
+  }
+}
+
 async function placeDetailsModal(it) {
   const loc = it.location || {};
   const title = loc.name || it.title || "Place";
@@ -2412,9 +2488,10 @@ function renderOverview() {
     })
   );
   wrap.querySelectorAll(".dv-item").forEach((row) =>
-    row.addEventListener("click", () => {
+    row.addEventListener("click", (e) => {
+      if (e.target.closest("a")) return; // let location/link taps through
       const it = trip.items.find((x) => x.id === row.dataset.edit);
-      if (it) itemEditor(it);
+      if (it) eventDetails(it);
     })
   );
 
