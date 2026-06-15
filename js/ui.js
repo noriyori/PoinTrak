@@ -2273,18 +2273,11 @@ function renderOverview() {
       </div>
       ${
         nextUp
-          ? `<div class="ov-nextup"><span class="ov-nextup-ic">${itemIcon(nextUp)}</span> <strong>Next up</strong> · ${escapeHtml(nextUp.title)}${
+          ? `<button type="button" class="ov-nextup" data-next="${nextUp.id}"><span class="ov-nextup-ic">${itemIcon(nextUp)}</span> <strong>Next up</strong> · ${escapeHtml(nextUp.title)}${
               nextUp.date ? ` · ${shortDate(nextUp.date)}${nextUp.time ? " " + escapeHtml(nextUp.time) : ""}` : ""
-            }</div>`
+            }</button>`
           : ""
       }
-      <div class="ov-stats">
-        <div class="ov-stat"><span class="num">${items.length}</span><span class="lbl">itinerary items</span></div>
-        <div class="ov-stat"><span class="num">${pendingSugg.length}</span><span class="lbl">open suggestions</span></div>
-        <div class="ov-stat"><span class="num">${doneCount}/${totalCount}</span><span class="lbl">to-dos done</span></div>
-        <div class="ov-stat"><span class="num">${located.length}</span><span class="lbl">stops mapped</span></div>
-      </div>
-      <div class="ov-crew">Planning together: <span class="ov-crew-list">${crew}</span></div>
     </div>`;
 
   // ----- Day selector tile -----
@@ -2448,6 +2441,11 @@ function renderOverview() {
       else if (q === "city") cityVisitModal();
     })
   );
+  const nextBtn = wrap.querySelector(".ov-nextup[data-next]");
+  if (nextBtn) nextBtn.addEventListener("click", () => {
+    const it = trip.items.find((x) => x.id === nextBtn.dataset.next);
+    if (it) eventDetails(it);
+  });
   wrap.querySelectorAll(".ov-add").forEach((b) =>
     b.addEventListener("click", () => {
       if (b.dataset.add === "item") itemEditor(null, addDefaults());

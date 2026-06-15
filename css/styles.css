@@ -337,7 +337,7 @@ button.link {
 /* Overview quick actions (New activity / Map / Suggest) */
 /* Align to the top so the ＋ circle and the Explore-city pill (both 48px tall)
    share a centerline; the "New" caption hangs below the circle. */
-.ov-quick { display: flex; gap: 14px; margin-top: 16px; flex-wrap: wrap; align-items: flex-start; }
+.ov-quick { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; align-items: flex-start; }
 /* Rounded-rectangle quick action (e.g. Explore city) */
 .ov-qpill {
   display: inline-flex; align-items: center; gap: 8px;
@@ -668,7 +668,14 @@ a.chip-link:hover { border-color: var(--accent); }
 .dv-next { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18); }
 
 /* Overview "next up" line */
-.ov-nextup { margin: 12px 0 0; font-size: 14px; color: var(--text); }
+.ov-nextup {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  width: 100%; margin: 12px 0 0; padding: 9px 12px;
+  font: inherit; font-size: 13.5px; text-align: left; color: var(--text);
+  background: var(--bg-soft); border: 1px solid var(--line); border-radius: 12px;
+  cursor: pointer;
+}
+.ov-nextup:hover { border-color: var(--accent); }
 .ov-nextup strong { color: var(--accent); }
 
 /* ---------- Map ---------- */
