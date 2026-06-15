@@ -274,7 +274,7 @@ async function googlePlaceDetails(query) {
   if (!googlePlacesEnabled()) return { error: "no-key" };
   const q = (query || "").trim();
   if (!q) return { error: "missing" };
-  const ck = "pointrak.place." + q.toLowerCase();
+  const ck = "pointrak.place2." + q.toLowerCase();
   try { const c = localStorage.getItem(ck); if (c) return JSON.parse(c); } catch (_) {}
   try {
     const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
@@ -293,6 +293,11 @@ async function googlePlaceDetails(query) {
     const data = await res.json();
     const p = data.places && data.places[0];
     if (!p) return { error: "not-found" };
+    // Up to 10 photos, each with a thumbnail + a large gallery version.
+    const photos = (p.photos || []).slice(0, 10).map((ph) => ({
+      thumb: googlePhotoUrl(ph.name, 400),
+      full: googlePhotoUrl(ph.name, 1200),
+    }));
     const out = {
       name: (p.displayName && p.displayName.text) || "",
       address: p.formattedAddress || "",
@@ -304,7 +309,8 @@ async function googlePlaceDetails(query) {
       mapsUri: p.googleMapsUri || "",
       summary: (p.editorialSummary && p.editorialSummary.text) || "",
       types: p.types || [],
-      photo: p.photos && p.photos[0] ? googlePhotoUrl(p.photos[0].name, 480) : "",
+      photo: photos[0] ? photos[0].thumb : "",
+      photos,
     };
     try { localStorage.setItem(ck, JSON.stringify(out)); } catch (_) {}
     return out;

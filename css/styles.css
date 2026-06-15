@@ -1174,3 +1174,42 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .type-opt-ic { display: block; margin-bottom: 6px; color: var(--muted); }
 .type-opt-ic .ico { font-size: 24px; display: inline-block; margin: 0; }
 .type-opt.sel .type-opt-ic { color: var(--accent); }
+
+/* Tappable photo banner + "N photos" badge */
+.ph-box { position: relative; display: block; border: none; padding: 0; cursor: pointer; background-size: cover; background-position: center; }
+.sg-photo { position: relative; }
+.ph-count {
+  position: absolute; right: 8px; bottom: 8px;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(0, 0, 0, 0.6); color: #fff;
+  font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 20px;
+}
+.ph-count .ico { font-size: 14px; }
+
+/* Photo gallery (lightbox) */
+.gallery { display: flex; flex-direction: column; gap: 10px; }
+.gallery-head { display: flex; align-items: center; gap: 10px; min-height: 18px; }
+.gallery-count { font-size: 13px; color: var(--muted); font-weight: 600; }
+.gallery-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gallery-main { position: relative; }
+.gallery-img {
+  width: 100%; height: min(60vh, 460px);
+  border-radius: 12px; background: #000;
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+}
+.gallery-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; border-radius: 50%; border: none;
+  background: rgba(0, 0, 0, 0.55); color: #fff;
+  display: grid; place-items: center; cursor: pointer;
+}
+.gallery-nav .ico { font-size: 22px; }
+.gallery-prev { left: 8px; }
+.gallery-next { right: 8px; }
+.gallery-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.gal-thumb {
+  flex: 0 0 auto; width: 64px; height: 48px; padding: 0;
+  border-radius: 8px; border: 2px solid transparent; cursor: pointer;
+  background-size: cover; background-position: center;
+}
+.gal-thumb.sel { border-color: var(--accent); }
