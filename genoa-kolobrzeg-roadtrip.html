@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Genoa → Kołobrzeg · Road Trip Dossier</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#20251f;
+    --paper:#f3efe6;
+    --card:#fbf8f1;
+    --line:#dad2c2;
+    --petrol:#0e6b63;
+    --petrol-deep:#0a514b;
+    --amber:#d97b45;
+    --slate:#3f6f97;
+    --muted:#716b5d;
+    --warm-bg:#f6e4d3; --warm-ink:#9a4f23;
+    --mid-bg:#ece6dc;  --mid-ink:#6f6a5d;
+    --cool-bg:#dde7ef;  --cool-ink:#2f567a;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:"Hanken Grotesk",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--petrol-deep)}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 22px}
+  .mono{font-family:"Spline Sans Mono",ui-monospace,Menlo,monospace}
+
+  /* ---------- Hero ---------- */
+  header.hero{padding:64px 0 30px}
+  .eyebrow{
+    font-family:"Spline Sans Mono",monospace;font-size:12.5px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--petrol);margin:0 0 18px
+  }
+  h1{
+    font-family:"Fraunces",Georgia,serif;font-weight:500;
+    font-size:clamp(40px,8vw,76px);line-height:.98;letter-spacing:-.01em;margin:0;
+  }
+  h1 .arrow{color:var(--amber);font-style:italic}
+  h1 .pl{color:var(--slate)}
+  .lede{font-size:clamp(17px,2.4vw,20px);color:var(--muted);max-width:60ch;margin:20px 0 0}
+  .stats{display:flex;flex-wrap:wrap;gap:10px 0;margin:30px 0 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .stat{flex:1 1 25%;min-width:130px;padding:16px 18px 16px 0;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:0}
+  .stat .n{font-family:"Fraunces",serif;font-size:26px;line-height:1;display:block}
+  .stat .l{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:7px;display:block}
+
+  /* ---------- Map ---------- */
+  .map-band{margin:38px 0 8px}
+  #map{height:440px;width:100%;border:1px solid var(--line);border-radius:var(--radius);background:#e9e4d8;z-index:0}
+  .map-note{font-family:"Spline Sans Mono",monospace;font-size:11.5px;color:var(--muted);margin:10px 2px 0;letter-spacing:.03em}
+  .leaflet-container{font-family:inherit}
+  .pin{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;
+    color:#fff;font-family:"Spline Sans Mono",monospace;font-weight:500;font-size:13px;
+    border:2.5px solid #fbf8f1;box-shadow:0 2px 6px rgba(40,30,15,.32)}
+  .pop b{font-family:"Fraunces",serif;font-weight:600;font-size:16px}
+  .pop .meta{font-family:"Spline Sans Mono",monospace;font-size:11px;color:#555;letter-spacing:.04em;margin:2px 0 6px}
+  .pop a{display:inline-block;margin:2px 8px 2px 0;font-size:13px}
+
+  /* ---------- Itinerary ---------- */
+  .section-label{
+    font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--muted);margin:54px 0 6px;display:flex;align-items:center;gap:14px
+  }
+  .section-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  .trip{position:relative;margin:26px 0 0;padding-left:46px}
+  .spine{position:absolute;left:14px;top:8px;bottom:60px;width:3px;border-radius:2px;
+    background:linear-gradient(var(--amber),#b07a55 30%,#7d7a78 52%,var(--slate))}
+  .day{position:relative;margin:0 0 18px;opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease}
+  .day.in{opacity:1;transform:none}
+  .node{position:absolute;left:-46px;top:24px;width:30px;height:30px;border-radius:50%;
+    display:grid;place-items:center;color:#fff;font-family:"Spline Sans Mono",monospace;font-size:13px;font-weight:500;
+    border:3px solid var(--paper)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 24px;box-shadow:0 1px 0 rgba(40,30,15,.03)}
+  .card .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px}
+  .date{font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.08em;color:var(--petrol);text-transform:uppercase}
+  .country{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-left:auto}
+  .town{font-family:"Fraunces",serif;font-weight:500;font-size:clamp(26px,4vw,34px);line-height:1.05;margin:6px 0 0;letter-spacing:-.01em}
+  .town a{color:inherit;text-decoration:none;background-image:linear-gradient(var(--petrol),var(--petrol));background-size:0% 1.5px;background-repeat:no-repeat;background-position:0 100%;transition:background-size .3s}
+  .town a:hover{background-size:100% 1.5px}
+  .nights{display:inline-block;font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--petrol-deep);border:1px solid var(--petrol);border-radius:20px;padding:3px 9px;margin-left:10px;vertical-align:middle}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+  .chip{font-family:"Spline Sans Mono",monospace;font-size:11.5px;letter-spacing:.04em;padding:5px 11px;border-radius:8px;display:inline-flex;align-items:center;gap:7px}
+  .chip.drive{background:#e7eee9;color:var(--petrol-deep)}
+  .chip.weather{font-weight:500}
+  .chip.warm{background:var(--warm-bg);color:var(--warm-ink)}
+  .chip.mid{background:var(--mid-bg);color:var(--mid-ink)}
+  .chip.cool{background:var(--cool-bg);color:var(--cool-ink)}
+  .chip.locate{background:transparent;border:1px solid var(--line);color:var(--muted);cursor:pointer}
+  .chip.locate:hover{border-color:var(--petrol);color:var(--petrol-deep)}
+  .desc{margin:14px 0 0;color:#3a3d36}
+  .sights-h{font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:18px 0 9px}
+  .sights{display:flex;flex-wrap:wrap;gap:8px}
+  .sight{font-size:14px;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:6px 13px;transition:border-color .2s,background .2s,transform .2s}
+  .sight::before{content:"›";color:var(--petrol);margin-right:7px;font-weight:600}
+  .sight:hover{border-color:var(--petrol);background:#f0f6f4;transform:translateY(-1px)}
+
+  /* ---------- Footer notes ---------- */
+  .notes{margin:56px 0 0;border-top:2px solid var(--ink);padding-top:30px}
+  .notes h2{font-family:"Fraunces",serif;font-weight:500;font-size:30px;margin:0 0 22px}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
+  .note{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px}
+  .note h3{font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--petrol);margin:0 0 10px}
+  .note p{margin:0;font-size:15.5px;color:#3a3d36}
+  footer.foot{margin:46px 0 60px;font-family:"Spline Sans Mono",monospace;font-size:11.5px;color:var(--muted);letter-spacing:.04em;line-height:1.7}
+
+  @media(max-width:680px){
+    .stat{flex-basis:50%;border-right:0}
+    .grid{grid-template-columns:1fr}
+    .trip{padding-left:38px}
+    .node,.day .node{left:-38px;width:26px;height:26px}
+    .spine{left:11px}
+    .country{margin-left:0}
+  }
+  @media(prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .day{opacity:1;transform:none;transition:none}
+    .sight,.town a{transition:none}
+  }
+  a:focus-visible,.chip.locate:focus-visible,.sight:focus-visible{outline:2.5px solid var(--petrol);outline-offset:2px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Road trip dossier · Jun 26 – Jul 3, 2026</p>
+    <h1>Genoa <span class="arrow">→</span> Koło<span class="pl">brzeg</span></h1>
+    <p class="lede">A run up the spine of Europe — from the Ligurian heat over the Brenner, through Bavaria and Bohemia, to the Baltic — stopping only in towns worth the time. Built around the forecast: hot and dry in the south, a cooler showery break up north.</p>
+    <div class="stats">
+      <div class="stat"><span class="n">7</span><span class="l">nights</span></div>
+      <div class="stat"><span class="n">5</span><span class="l">countries</span></div>
+      <div class="stat"><span class="n">~1,750</span><span class="l">km driving</span></div>
+      <div class="stat"><span class="n">Jul 3</span><span class="l">arrive by noon</span></div>
+    </div>
+  </header>
+
+  <section class="map-band">
+    <div id="map"></div>
+    <p class="map-note">Tap a marker for sights. Connecting lines are schematic, not the driving route. Use the “locate” chip on any day to fly there.</p>
+  </section>
+
+  <p class="section-label">The route, day by day</p>
+  <div class="trip">
+    <div class="spine"></div>
+    <div id="days"></div>
+  </div>
+
+  <section class="notes">
+    <h2>Before you roll</h2>
+    <div class="grid">
+      <div class="note">
+        <h3>Tolls &amp; vignettes</h3>
+        <p>Italy charges motorway tolls as you go. Austria needs a vignette plus a separate Brenner Pass toll, and Czechia needs an e-vignette — buy both online before crossing. Germany has no car tolls; Poland is mostly free.</p>
+      </div>
+      <div class="note">
+        <h3>Pack for two climates</h3>
+        <p>Through Jun 30 it's hot and sunny — breathable layers, sun cover, water in the car, early starts on the Regensburg and Český Krumlov days. From Jul 1 it turns cooler and showery: keep a light rain shell and one warm layer on top of the bags for the Baltic stretch.</p>
+      </div>
+      <div class="note">
+        <h3>Book ahead</h3>
+        <p>Český Krumlov and Dresden fill up in early July. Reserve those soon. Český Krumlov's castle interior is closed Mondays — you arrive Monday, so tour it Tuesday morning before leaving.</p>
+      </div>
+      <div class="note">
+        <h3>Re-check the back half</h3>
+        <p>The Jul 1–3 end of the forecast is still a week out and will shift. Look again midweek for Dresden, Szczecin, and the Kołobrzeg arrival, and leave Szczecin by ~8:30 AM on the 3rd for a comfortable cushion before noon.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    Genoa → Bergamo → Innsbruck → Regensburg → Český Krumlov → Dresden (2 nights) → Szczecin → Kołobrzeg<br/>
+    Sight links open in Google Maps · Weather reflects late-June/early-July 2026 forecasts, last checked Jun 25.
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  const mapsTown = {
+    bergamo:"https://maps.google.com/?cid=2853919124744548986",
+    innsbruck:"https://maps.google.com/?cid=10201500787482022117",
+    regensburg:"https://maps.google.com/?cid=2429223245939744819",
+    krumlov:"https://maps.google.com/?cid=18440846094672221574",
+    dresden:"https://maps.google.com/?cid=17533103556031411634",
+    szczecin:"https://maps.google.com/?cid=7074644394190848917",
+    kolobrzeg:"https://maps.google.com/?cid=3795129984307478541"
+  };
+  const q = s => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(s);
+
+  const stops = [
+    { n:"S", key:"genoa", town:"Genoa", country:"Italy · start", lat:44.4115, lng:8.9278,
+      color:"#d97b45", start:true,
+      date:"Fri Jun 26 · depart", drive:null, wx:null, wxk:null,
+      desc:"Roll out of the centro storico and point the car north.",
+      sights:[] },
+    { n:"1", key:"bergamo", town:"Bergamo", sub:"Città Alta", country:"Italy", lat:45.704463, lng:9.663095,
+      color:"#de8a4f",
+      date:"Fri Jun 26 · night 1", drive:"≈ 2h from Genoa", wx:"≈ 26°C · clear", wxk:"warm",
+      desc:"A medieval upper town wrapped in Venetian walls — an easy first afternoon on the cobbles.",
+      sights:[["Piazza Vecchia","Piazza Vecchia, Bergamo"],["Venetian Walls (UNESCO)","Venetian Walls Bergamo"],["Santa Maria Maggiore","Basilica di Santa Maria Maggiore Bergamo"],["Cappella Colleoni","Cappella Colleoni Bergamo"],["Funicular","Funicolare Città Alta Bergamo"]] },
+    { n:"2", key:"innsbruck", town:"Innsbruck", country:"Austria", lat:47.268674, lng:11.393328,
+      color:"#cf8a5d",
+      date:"Sat Jun 27 · night 2", drive:"≈ 3.5h over the Brenner", wx:"≈ 29°C · sunny", wxk:"warm",
+      desc:"The Habsburg old town under the Alps — gilded balconies, arcades, and mountain air.",
+      sights:[["Golden Roof","Goldenes Dachl Innsbruck"],["Old Town (Altstadt)","Altstadt Innsbruck"],["Imperial Palace","Hofburg Innsbruck"],["Hofkirche","Hofkirche Innsbruck"],["Nordkette cable car","Nordkettenbahnen Innsbruck"]] },
+    { n:"3", key:"regensburg", town:"Regensburg", country:"Germany", lat:49.020271, lng:12.094722,
+      color:"#a9846f",
+      date:"Sun Jun 28 · night 3", drive:"≈ 3h", wx:"≈ 30°C · hot", wxk:"warm",
+      desc:"A UNESCO medieval old town on the Danube with Germany's oldest stone bridge. The hot one — start early, long lunch, hydrate.",
+      sights:[["Old Town Hall","Altes Rathaus Regensburg"],["Stone Bridge","Steinerne Brücke Regensburg"],["Cathedral (Dom St. Peter)","Regensburger Dom"],["Old Town (UNESCO)","Regensburg Altstadt"]] },
+    { n:"4", key:"krumlov", town:"Český Krumlov", country:"Czechia", lat:48.812850, lng:14.313989,
+      color:"#7f7d7a",
+      date:"Mon Jun 29 · night 4", drive:"≈ 2.5h", wx:"≈ 25°C · warm, dry", wxk:"mid",
+      desc:"The fairytale town looped by the Vltava under its castle — the trip's sweet spot for weather. Tour the castle interior Tuesday morning before you leave.",
+      sights:[["Český Krumlov Castle","Český Krumlov Castle"],["Castle Tower","Český Krumlov Castle Tower"],["Náměstí Svornosti","Náměstí Svornosti Český Krumlov"],["Cloak Bridge","Plášťový most Český Krumlov"]] },
+    { n:"5", key:"dresden", town:"Dresden", country:"Germany", lat:51.054159, lng:13.736664,
+      color:"#5f7790", nights2:true,
+      date:"Tue Jun 30 – Thu Jul 2 · nights 5–6", drive:"≈ 4h", wx:"≈ 24°C · showers Jul 1", wxk:"cool",
+      desc:"Your two-night base. Rebuilt baroque core plus world-class museums — and the full day (Wed Jul 1) lands on the rainy day, exactly when you want to be indoors. Day-trip range to Meissen or the Bastei.",
+      sights:[["Frauenkirche","Frauenkirche Dresden"],["Zwinger","Zwinger Dresden"],["Old Masters Gallery","Gemäldegalerie Alte Meister Dresden"],["Green Vault","Grünes Gewölbe Dresden"],["Semperoper","Semperoper Dresden"],["Brühl's Terrace","Brühlsche Terrasse Dresden"],["Bastei (day trip)","Bastei Saxon Switzerland"],["Meissen (day trip)","Meissen Germany"]] },
+    { n:"6", key:"szczecin", town:"Szczecin", country:"Poland", lat:53.427492, lng:14.559545,
+      color:"#4a74a0",
+      date:"Thu Jul 2 · night 7", drive:"≈ 4h — longest leg", wx:"≈ 21°C · showery", wxk:"cool",
+      desc:"Into Poland. The Pomeranian dukes' seat, with a reconstructed old town and a grand waterfront terrace.",
+      sights:[["Ducal Castle","Pomeranian Dukes' Castle Szczecin"],["Chrobry Embankment","Wały Chrobrego Szczecin"],["Cathedral Basilica","Szczecin Cathedral"],["Old Town","Szczecin Old Town"]] },
+    { n:"7", key:"kolobrzeg", town:"Kołobrzeg", country:"Poland · finish", lat:54.175917, lng:15.583267,
+      color:"#3f6f97", finish:true,
+      date:"Fri Jul 3 · arrive by noon", drive:"≈ 1h45 — leave ~8:30 AM", wx:"≈ 20°C · breezy, clearing", wxk:"cool",
+      desc:"Breezy Baltic air, drying out after the midweek showers. Arrive well before noon, then settle in.",
+      sights:[["Cathedral (Bazylika)","Kołobrzeg Cathedral"],["Lighthouse","Kołobrzeg Lighthouse"],["Pier (Molo)","Kołobrzeg Molo"],["Old Town","Kołobrzeg Old Town"]] }
+  ];
+
+  /* ---------- Build day cards ---------- */
+  const daysEl = document.getElementById("days");
+  stops.filter(s=>!s.start).forEach(s=>{
+    const townHref = mapsTown[s.key] || q(s.town);
+    const sub = s.sub ? ` <span style="font-style:italic;color:var(--muted);font-size:.7em">${s.sub}</span>` : "";
+    const nights = s.nights2 ? `<span class="nights">2 nights</span>` : "";
+    const chips = [];
+    if(s.drive) chips.push(`<span class="chip drive">🚗 ${s.drive}</span>`);
+    if(s.wx) chips.push(`<span class="chip weather ${s.wxk}">${s.wx}</span>`);
+    chips.push(`<span class="chip locate" data-key="${s.key}" role="button" tabindex="0">◎ locate on map</span>`);
+    const sights = s.sights.map(([label,query])=>
+      `<a class="sight" href="${q(query)}" target="_blank" rel="noopener">${label}</a>`).join("");
+    const el = document.createElement("article");
+    el.className = "day";
+    el.id = "day-" + s.key;
+    el.innerHTML = `
+      <span class="node" style="background:${s.color}">${s.n}</span>
+      <div class="card">
+        <div class="top">
+          <span class="date">${s.date}</span>
+          <span class="country">${s.country}</span>
+        </div>
+        <h3 class="town"><a href="${townHref}" target="_blank" rel="noopener">${s.town}</a>${sub}${nights}</h3>
+        <div class="chips">${chips.join("")}</div>
+        <p class="desc">${s.desc}</p>
+        ${s.sights.length ? `<p class="sights-h">Sights — tap to open in maps</p><div class="sights">${sights}</div>` : ""}
+      </div>`;
+    daysEl.appendChild(el);
+  });
+
+  /* ---------- Scroll reveal ---------- */
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(!reduce && "IntersectionObserver" in window){
+    const io = new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target);} });
+    },{threshold:.15});
+    document.querySelectorAll(".day").forEach(d=>io.observe(d));
+  } else {
+    document.querySelectorAll(".day").forEach(d=>d.classList.add("in"));
+  }
+
+  /* ---------- Map ---------- */
+  let markers = {};
+  try{
+    const map = L.map("map",{scrollWheelZoom:false}).setView([49.6,12.4],5);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{
+      attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:"abcd", maxZoom:18
+    }).addTo(map);
+
+    const line = stops.map(s=>[s.lat,s.lng]);
+    L.polyline(line,{color:"#0e6b63",weight:2.5,opacity:.7,dashArray:"2 7",lineCap:"round"}).addTo(map);
+
+    stops.forEach(s=>{
+      const icon = L.divIcon({
+        className:"", html:`<div class="pin" style="background:${s.color}">${s.n}</div>`,
+        iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-14]
+      });
+      const sightLinks = s.sights.slice(0,4).map(([label,query])=>
+        `<a href="${q(query)}" target="_blank" rel="noopener">${label}</a>`).join("");
+      const m = L.marker([s.lat,s.lng],{icon}).addTo(map);
+      m.bindPopup(
+        `<div class="pop"><b>${s.town}</b><div class="meta">${s.date}${s.wx ? " · "+s.wx : ""}</div>${sightLinks}</div>`
+      );
+      markers[s.key] = m;
+    });
+
+    const group = L.featureGroup(Object.values(markers));
+    map.fitBounds(group.getBounds().pad(0.12));
+
+    // locate chips
+    document.addEventListener("click", e=>{
+      const c = e.target.closest(".chip.locate"); if(!c) return;
+      const m = markers[c.dataset.key]; if(!m) return;
+      document.getElementById("map").scrollIntoView({behavior: reduce?"auto":"smooth", block:"center"});
+      map.flyTo(m.getLatLng(), 9, {duration: reduce?0:0.9});
+      setTimeout(()=>m.openPopup(), reduce?0:700);
+    });
+    document.addEventListener("keydown", e=>{
+      if((e.key==="Enter"||e.key===" ") && e.target.classList.contains("locate")){ e.preventDefault(); e.target.click(); }
+    });
+  }catch(err){
+    document.getElementById("map").innerHTML =
+      '<div style="padding:24px;font-family:monospace;color:#716b5d">Map could not load here — open this file in a browser to see the interactive route. The day-by-day below works either way.</div>';
+  }
+</script>
+</body>
+</html>
